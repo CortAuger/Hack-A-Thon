@@ -10,9 +10,7 @@ import {
   Typography,
   Menu,
   Container,
-  Avatar,
   Button,
-  Tooltip,
   MenuItem,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -22,12 +20,13 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import HomeIcon from "@mui/icons-material/Home";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import Link from "next/link";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import SearchIcon from "@mui/icons-material/Search";
 
 // Navigation menu items configuration
 const pages = [
-  { name: "Live Tracking", path: "/", icon: <DirectionsBusIcon /> },
-  { name: "Routes", path: "/routes", icon: <DirectionsBusIcon /> },
-  { name: "Route List", path: "/routes/list", icon: <DirectionsBusIcon /> },
+  { name: "Search", path: "/search", icon: <SearchIcon /> },
+  { name: "Routes", path: "/routes/list", icon: <DirectionsBusIcon /> },
   { name: "Stops", path: "/stops", icon: <LocationOnIcon /> },
   { name: "Weather", path: "/weather", icon: <WbSunnyIcon /> },
   { name: "Settings", path: "/settings", icon: <SettingsIcon /> },
@@ -39,28 +38,30 @@ export default function Navigation() {
   const router = useRouter();
   const pathname = usePathname();
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
-  const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
   // Handle navigation menu open/close
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
-  };
-  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorElUser(event.currentTarget);
   };
 
   const handleCloseNavMenu = () => {
     setAnchorElNav(null);
   };
 
-  const handleCloseUserMenu = () => {
-    setAnchorElUser(null);
-  };
-
   return (
     <AppBar position="static">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
+          <IconButton
+            edge="start"
+            color="inherit"
+            aria-label="back"
+            onClick={() => router.back()}
+            sx={{ mr: 2 }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+
           {/* Logo for desktop view */}
           <DirectionsBusIcon
             sx={{ display: { xs: "none", md: "flex" }, mr: 1 }}
@@ -171,38 +172,6 @@ export default function Navigation() {
                 {page.name}
               </Button>
             ))}
-          </Box>
-
-          {/* User menu */}
-          <Box sx={{ flexGrow: 0 }}>
-            <Tooltip title="Open settings">
-              <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-                <Avatar sx={{ bgcolor: "primary.main" }}>DRT</Avatar>
-              </IconButton>
-            </Tooltip>
-            <Menu
-              sx={{ mt: "45px" }}
-              id="menu-appbar"
-              anchorEl={anchorElUser}
-              anchorOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              keepMounted
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              open={Boolean(anchorElUser)}
-              onClose={handleCloseUserMenu}
-            >
-              <MenuItem onClick={handleCloseUserMenu}>
-                <Typography textAlign="center">Profile</Typography>
-              </MenuItem>
-              <MenuItem onClick={handleCloseUserMenu}>
-                <Typography textAlign="center">Logout</Typography>
-              </MenuItem>
-            </Menu>
           </Box>
         </Toolbar>
       </Container>
