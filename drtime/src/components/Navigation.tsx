@@ -52,7 +52,7 @@ export default function Navigation() {
     <AppBar position="static">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
-          <IconButton
+          {/* <IconButton
             edge="start"
             color="inherit"
             aria-label="back"
@@ -60,7 +60,7 @@ export default function Navigation() {
             sx={{ mr: 2 }}
           >
             <ArrowBackIcon />
-          </IconButton>
+          </IconButton> */}
 
           {/* Logo for desktop view */}
           <DirectionsBusIcon
@@ -85,6 +85,7 @@ export default function Navigation() {
           </Typography>
 
           {/* Mobile menu */}
+          {/*
           <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
             <IconButton
               size="large"
@@ -96,7 +97,7 @@ export default function Navigation() {
             >
               <MenuIcon />
             </IconButton>
-            <Menu
+             <Menu
               id="menu-appbar"
               anchorEl={anchorElNav}
               anchorOrigin={{
@@ -125,31 +126,33 @@ export default function Navigation() {
                   <Typography textAlign="center">{page.name}</Typography>
                 </MenuItem>
               ))}
-            </Menu>
-          </Box>
+            </Menu> 
+          </Box> */}
 
           {/* Logo for mobile view */}
-          <DirectionsBusIcon
-            sx={{ display: { xs: "flex", md: "none" }, mr: 1 }}
-          />
-          <Typography
-            variant="h5"
-            noWrap
-            component="a"
-            href="/"
-            sx={{
-              mr: 2,
-              display: { xs: "flex", md: "none" },
-              flexGrow: 1,
-              fontFamily: "monospace",
-              fontWeight: 700,
-              letterSpacing: ".3rem",
-              color: "inherit",
-              textDecoration: "none",
-            }}
-          >
-            DRTIME
-          </Typography>
+          <Box sx={{ 
+            display: { xs: "flex", md: "none" },
+            alignItems: "center",
+            justifyContent: "center",
+            flexGrow: 1
+          }}>
+            <DirectionsBusIcon sx={{ mr: 1 }} />
+            <Typography
+              variant="h5"
+              noWrap
+              component="a"
+              href="/"
+              sx={{
+                fontFamily: "monospace",
+                fontWeight: 700,
+                letterSpacing: ".3rem",
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
+              DRTIME
+            </Typography>
+          </Box>
 
           {/* Desktop menu */}
           <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" } }}>
