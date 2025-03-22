@@ -160,7 +160,9 @@ export default function Navigation() {
                 sx={{
                   my: 2,
                   color: "white",
-                  display: "block",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
                   mx: 1,
                   backgroundColor:
                     pathname === page.path

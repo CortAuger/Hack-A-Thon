@@ -165,8 +165,18 @@ export default function RoutesList() {
           }}
         />
 
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <StyledPaper sx={{ flex: 1 }}>
+        <Box sx={{ 
+          display: "flex", 
+          gap: 2,
+          flexDirection: { xs: 'column', md: 'row' }
+        }}>
+          <StyledPaper sx={{ 
+            flex: { xs: '1 1 auto', md: 1 },
+            maxHeight: { 
+              xs: 'calc(40vh - 100px)', 
+              md: 'calc(100vh - 200px)' 
+            }
+          }}>
             <List>
               {filteredRoutes.length === 0 ? (
                 <Typography>No results found</Typography>
@@ -212,7 +222,13 @@ export default function RoutesList() {
           </StyledPaper>
 
           {selectedRoute && (
-            <StyledPaper sx={{ flex: 1 }}>
+            <StyledPaper sx={{ 
+              flex: { xs: '1 1 auto', md: 1 },
+              maxHeight: { 
+                xs: 'calc(60vh - 100px)', 
+                md: 'calc(100vh - 200px)' 
+              }
+            }}>
               <Typography variant="h6" gutterBottom>
                 Route Details
               </Typography>
