@@ -6,7 +6,9 @@ import {
   LoadScript,
   Marker,
   InfoWindow,
+  useLoadScript,
 } from "@react-google-maps/api";
+import type { MarkerProps } from "@react-google-maps/api";
 import {
   Box,
   Typography,
@@ -16,6 +18,7 @@ import {
   ListItemText,
   CircularProgress,
   Alert,
+  Container,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import GoogleMapsProvider from "@/components/GoogleMapsProvider";
@@ -27,51 +30,52 @@ interface Stop {
   stop_lon: number;
   distance: number;
   arrivals: {
-    routeId: string;
-    routeName: string;
-    arrivalTime: number;
-    departureTime: number;
-    status: string;
+    route_name: string;
+    arrival_time: number;
+    is_realtime: boolean;
+    delay: number;
   }[];
 }
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
-  margin: theme.spacing(2),
-  maxHeight: "80vh",
-  overflow: "auto",
+  marginBottom: theme.spacing(2),
+  height: "70vh",
+  overflow: "hidden",
 }));
 
 const mapContainerStyle = {
   width: "100%",
-  height: "70vh",
+  height: "100%",
 };
 
 const defaultCenter = {
-  lat: 43.9441274,
-  lng: -78.8945614,
+  lat: 43.9441313,
+  lng: -78.8945272,
 };
 
 export default function StopsPage() {
-  const [stops, setStops] = useState<Stop[]>([]);
+  const [userLocation, setUserLocation] =
+    useState<google.maps.LatLngLiteral | null>(null);
+  const [nearbyStops, setNearbyStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
-  const [userLocation, setUserLocation] =
-    useState<google.maps.LatLngLiteral | null>(null);
 
   useEffect(() => {
-    if (navigator.geolocation) {
+    if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
+          const location = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
-          fetchNearbyStops(position.coords.latitude, position.coords.longitude);
+          };
+          setUserLocation(location);
+          fetchNearbyStops(location);
         },
         (error) => {
-          setError("Error getting location: " + error.message);
+          console.error("Error getting location:", error);
+          setError("Unable to get location information");
           setLoading(false);
         }
       );
@@ -81,140 +85,140 @@ export default function StopsPage() {
     }
   }, []);
 
-  const fetchNearbyStops = async (lat: number, lng: number) => {
+  const fetchNearbyStops = async (location: google.maps.LatLngLiteral) => {
     try {
-      const response = await fetch(`/api/stops/nearby?lat=${lat}&lon=${lng}`);
+      const response = await fetch(
+        `/api/stops/nearby?lat=${location.lat}&lon=${location.lng}`
+      );
       if (!response.ok) {
-        throw new Error("Failed to fetch stops");
+        throw new Error("Failed to fetch nearby stops");
       }
       const data = await response.json();
-      setStops(data.stops);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch stops");
+      setNearbyStops(data.stops);
+    } catch (error) {
+      console.error("Error fetching nearby stops:", error);
+      setError("Unable to fetch nearby bus stops");
     } finally {
       setLoading(false);
     }
   };
 
+  const formatArrivalTime = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  const markerIcon: MarkerProps["icon"] = {
+    url: "/bus-stop.svg",
+    scaledSize: { width: 30, height: 30 } as google.maps.Size,
+  };
+
+  const userMarkerIcon: MarkerProps["icon"] = {
+    url: "/user-location.svg",
+    scaledSize: { width: 30, height: 30 } as google.maps.Size,
+  };
+
   if (loading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-      >
-        <CircularProgress />
-      </Box>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="calc(100vh - 64px)"
+        >
+          <CircularProgress />
+        </Box>
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <Box p={3}>
-        <Alert severity="error">{error}</Alert>
-      </Box>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box p={3}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      </Container>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
-        Nearby Bus Stops
+        Find Nearby Bus Stops
       </Typography>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      <Box sx={{ display: "flex", gap: 2 }}>
+      <Box display="flex" gap={3}>
         <StyledPaper sx={{ flex: 2 }}>
           <GoogleMapsProvider>
             <GoogleMap
               mapContainerStyle={mapContainerStyle}
               center={userLocation || defaultCenter}
-              zoom={14}
-              options={{
-                zoomControl: true,
-                streetViewControl: true,
-                mapTypeControl: true,
-                fullscreenControl: true,
-              }}
+              zoom={15}
             >
               {userLocation && (
-                <Marker
-                  position={userLocation}
-                  icon={{
-                    url: "/user-location.png",
-                    scaledSize: new google.maps.Size(30, 30),
-                  }}
-                />
+                <Marker position={userLocation} icon={userMarkerIcon} />
               )}
-
-              {stops.map((stop) => (
+              {nearbyStops.map((stop) => (
                 <Marker
                   key={stop.stop_id}
                   position={{ lat: stop.stop_lat, lng: stop.stop_lon }}
                   onClick={() => setSelectedStop(stop)}
+                  icon={markerIcon}
                 />
               ))}
-
-              {selectedStop && (
-                <InfoWindow
-                  position={{
-                    lat: selectedStop.stop_lat,
-                    lng: selectedStop.stop_lon,
-                  }}
-                  onCloseClick={() => setSelectedStop(null)}
-                >
-                  <div>
-                    <Typography variant="h6">
-                      {selectedStop.stop_name}
-                    </Typography>
-                    <Typography variant="body2">
-                      Stop ID: {selectedStop.stop_id}
-                    </Typography>
-                    <Typography variant="subtitle1" sx={{ mt: 1 }}>
-                      Next Arrivals:
-                    </Typography>
-                    {selectedStop.arrivals.map((arrival, index) => (
-                      <Typography key={index} variant="body2">
-                        {arrival.routeName}:{" "}
-                        {new Date(
-                          arrival.arrivalTime * 1000
-                        ).toLocaleTimeString()}
-                      </Typography>
-                    ))}
-                  </div>
-                </InfoWindow>
-              )}
             </GoogleMap>
           </GoogleMapsProvider>
         </StyledPaper>
-
-        <StyledPaper sx={{ flex: 1 }}>
-          <Typography variant="h6" gutterBottom>
-            Nearby Stops
-          </Typography>
+        <Paper sx={{ flex: 1, overflow: "auto" }}>
           <List>
-            {stops.map((stop) => (
+            {nearbyStops.map((stop) => (
               <ListItem
                 key={stop.stop_id}
-                component="div"
+                button
+                selected={selectedStop?.stop_id === stop.stop_id}
                 onClick={() => setSelectedStop(stop)}
-                sx={{ cursor: "pointer" }}
               >
                 <ListItemText
                   primary={stop.stop_name}
-                  secondary={`${stop.distance.toFixed(2)} km away`}
+                  secondary={`Distance: ${stop.distance.toFixed(2)}km`}
                 />
               </ListItem>
             ))}
           </List>
-        </StyledPaper>
+        </Paper>
       </Box>
-    </Box>
+      {selectedStop && (
+        <Paper sx={{ mt: 2, p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            {selectedStop.stop_name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Distance: {selectedStop.distance.toFixed(2)}km
+          </Typography>
+          <Typography variant="subtitle1" gutterBottom>
+            Upcoming Buses
+          </Typography>
+          <List>
+            {selectedStop.arrivals.map((arrival, index) => (
+              <ListItem key={index}>
+                <ListItemText
+                  primary={arrival.route_name}
+                  secondary={`Arrival: ${formatArrivalTime(
+                    arrival.arrival_time
+                  )}${arrival.is_realtime ? " (Real-time)" : ""}${
+                    arrival.delay > 0 ? ` (Delay: ${arrival.delay}s)` : ""
+                  }`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Paper>
+      )}
+    </Container>
   );
 }

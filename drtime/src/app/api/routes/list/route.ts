@@ -3,60 +3,124 @@ import axios from "axios";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
 
-const GTFS_STATIC_URL = "https://www.durhamregiontransit.com/gtfs/gtfs.zip";
+const GTFS_STATIC_URL =
+  "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
 
-// Cache for routes data
-let routesCache: any[] | null = null;
-let lastCacheUpdate = 0;
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+// Cache configuration
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+let routesCache: {
+  data: RouteInfo[];
+  timestamp: number;
+} | null = null;
 
-async function loadRoutes() {
+interface RouteInfo {
+  route_id: string;
+  route_short_name: string;
+  route_long_name: string;
+  route_type: string;
+  route_color: string;
+  route_text_color: string;
+  trips_count: number;
+  stops_count: number;
+}
+
+async function fetchAndProcessRoutes() {
   try {
     // Return cached data if available and not expired
-    if (routesCache && Date.now() - lastCacheUpdate < CACHE_DURATION) {
-      return routesCache;
+    if (routesCache && Date.now() - routesCache.timestamp < CACHE_DURATION) {
+      return routesCache.data;
     }
 
-    console.log("Fetching GTFS routes data...");
+    console.log("Fetching GTFS data...");
     const response = await axios.get(GTFS_STATIC_URL, {
       responseType: "arraybuffer",
+      timeout: 10000,
     });
 
     const zip = new AdmZip(response.data);
-    const routesFile = zip.getEntry("routes.txt");
 
-    if (!routesFile) {
+    // Read and parse routes.txt
+    const routesEntry = zip.getEntry("routes.txt");
+    if (!routesEntry) {
       throw new Error("routes.txt not found in GTFS data");
     }
-
-    const routesContent = routesFile.getData().toString("utf-8");
-    const routes = parse(routesContent, {
+    const routesData = parse(routesEntry.getData().toString("utf8"), {
       columns: true,
       skip_empty_lines: true,
     });
 
-    // Sort routes by route_short_name
-    routes.sort((a: any, b: any) => {
-      const aNum = parseInt(a.route_short_name);
-      const bNum = parseInt(b.route_short_name);
+    // Read and parse trips.txt to count trips per route
+    const tripsEntry = zip.getEntry("trips.txt");
+    if (!tripsEntry) {
+      throw new Error("trips.txt not found in GTFS data");
+    }
+    const tripsData = parse(tripsEntry.getData().toString("utf8"), {
+      columns: true,
+      skip_empty_lines: true,
+    });
+
+    // Read and parse stop_times.txt to count stops per route
+    const stopTimesEntry = zip.getEntry("stop_times.txt");
+    if (!stopTimesEntry) {
+      throw new Error("stop_times.txt not found in GTFS data");
+    }
+    const stopTimesData = parse(stopTimesEntry.getData().toString("utf8"), {
+      columns: true,
+      skip_empty_lines: true,
+    });
+
+    // Process routes data
+    const routes = routesData.map((route: any) => {
+      // Count trips for this route
+      const routeTrips = tripsData.filter(
+        (trip: any) => trip.route_id === route.route_id
+      );
+
+      // Get unique stops for this route
+      const routeStops = new Set();
+      routeTrips.forEach((trip: any) => {
+        const tripStops = stopTimesData
+          .filter((st: any) => st.trip_id === trip.trip_id)
+          .map((st: any) => st.stop_id);
+        tripStops.forEach((stop: string) => routeStops.add(stop));
+      });
+
+      return {
+        route_id: route.route_id,
+        route_short_name: route.route_short_name || "",
+        route_long_name: route.route_long_name || "",
+        route_type: route.route_type || "3", // 3 is bus
+        route_color: route.route_color || "1976D2", // Default blue color
+        route_text_color: route.route_text_color || "FFFFFF",
+        trips_count: routeTrips.length,
+        stops_count: routeStops.size,
+      };
+    });
+
+    // Sort routes by route number
+    routes.sort((a: RouteInfo, b: RouteInfo) => {
+      const aNum = parseInt(a.route_short_name) || 0;
+      const bNum = parseInt(b.route_short_name) || 0;
       return aNum - bNum;
     });
 
     // Update cache
-    routesCache = routes;
-    lastCacheUpdate = Date.now();
-    console.log("Routes data loaded successfully");
+    routesCache = {
+      data: routes,
+      timestamp: Date.now(),
+    };
+
     return routes;
   } catch (error) {
-    console.error("Error loading routes data:", error);
+    console.error("Error fetching routes:", error);
     throw error;
   }
 }
 
 export async function GET() {
   try {
-    const routes = await loadRoutes();
-    return NextResponse.json({ routes });
+    const routes = await fetchAndProcessRoutes();
+    return NextResponse.json(routes);
   } catch (error) {
     console.error("Routes API error:", error);
     return NextResponse.json(

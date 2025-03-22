@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
-import { FeedMessage } from "gtfs-realtime-bindings";
+import * as GtfsRealtimeBindings from "gtfs-realtime-bindings";
 
 interface VehiclePosition {
   id: string;
@@ -18,6 +18,45 @@ interface TripUpdate {
   arrivalTime: number;
   departureTime: number;
   status: string;
+}
+
+interface GtfsEntity {
+  vehicle?: {
+    vehicle?: {
+      id?: string;
+    };
+    trip?: {
+      routeId?: string;
+    };
+    position?: {
+      latitude?: number;
+      longitude?: number;
+      speed?: number;
+    };
+    timestamp?: {
+      low?: number;
+    };
+  };
+  tripUpdate?: {
+    trip?: {
+      tripId?: string;
+      routeId?: string;
+    };
+    stopTimeUpdate?: Array<{
+      stopId?: string;
+      arrival?: {
+        time?: {
+          low?: number;
+        };
+      };
+      departure?: {
+        time?: {
+          low?: number;
+        };
+      };
+      scheduleRelationship?: string;
+    }>;
+  };
 }
 
 // Process GTFS real-time data
@@ -47,12 +86,15 @@ async function processGTFSRealtime() {
     });
 
     // Process vehicle positions
-    const vehiclePositionsFeed = FeedMessage.decode(
-      vehiclePositionsResponse.data
-    );
-    const vehiclePositions: VehiclePosition[] = vehiclePositionsFeed.entity
-      .filter((entity) => entity.vehicle && entity.vehicle.position)
-      .map((entity) => ({
+    const vehiclePositionsFeed =
+      GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+        new Uint8Array(vehiclePositionsResponse.data)
+      );
+    const vehiclePositions: VehiclePosition[] = (
+      vehiclePositionsFeed as any
+    ).entity
+      .filter((entity: GtfsEntity) => entity.vehicle && entity.vehicle.position)
+      .map((entity: GtfsEntity) => ({
         id: entity.vehicle?.vehicle?.id || "",
         routeId: entity.vehicle?.trip?.routeId || "",
         latitude: entity.vehicle?.position?.latitude || 0,
@@ -62,10 +104,13 @@ async function processGTFSRealtime() {
       }));
 
     // Process trip updates
-    const tripUpdatesFeed = FeedMessage.decode(tripUpdatesResponse.data);
-    const tripUpdates: TripUpdate[] = tripUpdatesFeed.entity
-      .filter((entity) => entity.tripUpdate)
-      .map((entity) => ({
+    const tripUpdatesFeed =
+      GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+        new Uint8Array(tripUpdatesResponse.data)
+      );
+    const tripUpdates: TripUpdate[] = (tripUpdatesFeed as any).entity
+      .filter((entity: GtfsEntity) => entity.tripUpdate)
+      .map((entity: GtfsEntity) => ({
         tripId: entity.tripUpdate?.trip?.tripId || "",
         routeId: entity.tripUpdate?.trip?.routeId || "",
         stopId: entity.tripUpdate?.stopTimeUpdate?.[0]?.stopId || "",
