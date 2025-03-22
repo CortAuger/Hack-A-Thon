@@ -2,47 +2,29 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
-import * as GtfsRealtimeBindings from "gtfs-realtime-bindings";
 
-// Type definitions for GTFS Realtime
-interface GtfsFeed {
-  entity: Array<{
-    tripUpdate?: {
-      trip?: {
-        tripId?: string;
-      };
-      stopTimeUpdate?: Array<{
-        stopId?: string;
-        arrival?: {
-          time?: number;
-          delay?: number;
-        };
-      }>;
-    };
-  }>;
-}
-
-// GTFS API URLs
+// GTFS API URL
 const GTFS_STATIC_URL =
   "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
-const GTFS_REALTIME_URL =
-  "https://drtonline.durhamregiontransit.com/gtfsrt/tripupdates";
 
 // Cache for GTFS data
 interface GtfsCache {
   routes: Array<{
     route_id: string;
-    route_long_name?: string;
-    route_short_name?: string;
+    route_short_name: string;
+    route_long_name: string;
   }>;
   trips: Array<{
     trip_id: string;
     route_id: string;
+    trip_headsign: string;
   }>;
   stopTimes: Array<{
     trip_id: string;
     stop_id: string;
-    route_id: string;
+    arrival_time: string;
+    departure_time: string;
+    stop_sequence: string;
   }>;
   stops: Array<{
     stop_id: string;
@@ -76,6 +58,63 @@ function calculateDistance(
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+// Helper function to convert GTFS time to Date
+function parseGtfsTime(timeStr: string): Date {
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  const now = new Date();
+  const result = new Date(now);
+
+  // Handle times past midnight (e.g., 25:00:00)
+  const dayOffset = Math.floor(hours / 24);
+  const adjustedHours = hours % 24;
+
+  result.setHours(adjustedHours, minutes, seconds);
+  result.setDate(result.getDate() + dayOffset);
+
+  return result;
+}
+
+// Helper function to get upcoming arrivals
+function getUpcomingArrivals(stopId: string, gtfsData: GtfsCache): any[] {
+  const now = new Date();
+  const upcoming: any[] = [];
+
+  // Get all stop times for this stop
+  const stopTimes = gtfsData.stopTimes.filter((st) => st.stop_id === stopId);
+
+  stopTimes.forEach((st) => {
+    const trip = gtfsData.trips.find((t) => t.trip_id === st.trip_id);
+    if (!trip) return;
+
+    const route = gtfsData.routes.find((r) => r.route_id === trip.route_id);
+    if (!route) return;
+
+    const arrivalTime = parseGtfsTime(st.arrival_time);
+
+    // Only include if arrival is in the future (within next 2 hours)
+    if (arrivalTime > now && arrivalTime.getTime() - now.getTime() <= 7200000) {
+      upcoming.push({
+        routeId: route.route_id,
+        routeName: route.route_short_name,
+        headsign: trip.trip_headsign,
+        scheduledArrival: arrivalTime.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+        minutesUntilArrival: Math.round(
+          (arrivalTime.getTime() - now.getTime()) / 60000
+        ),
+      });
+    }
+  });
+
+  // Sort by arrival time and limit to next 5 arrivals
+  return upcoming
+    .sort((a, b) => a.minutesUntilArrival - b.minutesUntilArrival)
+    .slice(0, 5);
 }
 
 async function downloadAndExtractGTFS() {
@@ -158,44 +197,12 @@ async function downloadAndExtractGTFS() {
   }
 }
 
-async function getRealtimeData(): Promise<GtfsFeed> {
-  try {
-    console.log("Fetching GTFS real-time data...");
-    const response = await axios.get(GTFS_REALTIME_URL, {
-      responseType: "arraybuffer",
-      headers: {
-        Accept: "application/x-protobuf",
-      },
-    });
-
-    if (!response.data || response.data.length === 0) {
-      console.warn("Empty response from GTFS realtime feed");
-      return { entity: [] };
-    }
-
-    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-      new Uint8Array(response.data)
-    ) as unknown as GtfsFeed;
-    console.log("GTFS real-time data loaded successfully");
-    return feed;
-  } catch (error) {
-    console.error("Error loading GTFS real-time data:", error);
-    if (axios.isAxiosError(error)) {
-      console.error("API Error Details:", {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-      });
-    }
-    return { entity: [] };
-  }
-}
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const lat = parseFloat(searchParams.get("lat") || "0");
-    const lon = parseFloat(searchParams.get("lon") || "0");
+    const lat = searchParams.get("lat");
+    const lon = searchParams.get("lon");
+    const radius = 10; // Changed from 5 to 10km
 
     if (!lat || !lon) {
       return NextResponse.json(
@@ -206,85 +213,35 @@ export async function GET(request: Request) {
 
     // Get GTFS data
     const gtfsData = await downloadAndExtractGTFS();
-    const realtimeData = await getRealtimeData();
 
-    // Find nearby stops (within 2km)
+    // Find nearby stops (within 5km instead of 2km)
     const nearbyStops = gtfsData.stops
-      .map((stop: any) => ({
-        ...stop,
-        stop_lat: parseFloat(stop.stop_lat),
-        stop_lon: parseFloat(stop.stop_lon),
-        distance: calculateDistance(
-          lat,
-          lon,
-          parseFloat(stop.stop_lat),
-          parseFloat(stop.stop_lon)
-        ),
-      }))
-      .filter((stop) => stop.distance <= 2)
+      .map((stop: any) => {
+        const upcomingArrivals = getUpcomingArrivals(stop.stop_id, gtfsData);
+
+        return {
+          id: stop.stop_id,
+          name: stop.stop_name,
+          latitude: parseFloat(stop.stop_lat),
+          longitude: parseFloat(stop.stop_lon),
+          distance: calculateDistance(
+            parseFloat(lat),
+            parseFloat(lon),
+            parseFloat(stop.stop_lat),
+            parseFloat(stop.stop_lon)
+          ),
+          arrivals: upcomingArrivals,
+        };
+      })
+      .filter((stop) => stop.distance <= radius) // Increase radius to 10km
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 10);
+      .slice(0, 60); // Increase number of stops to 60
 
-    if (nearbyStops.length === 0) {
-      return NextResponse.json({ stops: [] });
-    }
-
-    // Get arrival information for each stop
-    const stopsWithArrivals = nearbyStops.map((stop) => {
-      const stopTimes = gtfsData.stopTimes.filter(
-        (st: any) => st.stop_id === stop.stop_id
-      );
-      const arrivals = stopTimes
-        .map((stopTime: any) => {
-          const route = gtfsData.routes.find(
-            (r: any) => r.route_id === stopTime.route_id
-          );
-          if (!route) return null;
-
-          // Find real-time update for this stop
-          const realtimeUpdate = realtimeData.entity
-            .find((entity: any) => {
-              const tripUpdate = entity.tripUpdate;
-              return tripUpdate?.trip?.tripId === stopTime.trip_id;
-            })
-            ?.tripUpdate?.stopTimeUpdate?.find(
-              (update: any) => update.stopId === stop.stop_id
-            );
-
-          // Calculate arrival time
-          const arrivalTime =
-            realtimeUpdate?.arrival?.time ||
-            Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 3600);
-
-          return {
-            route_name: route.route_long_name || route.route_short_name,
-            arrival_time: arrivalTime,
-            is_realtime: !!realtimeUpdate,
-            delay: realtimeUpdate?.arrival?.delay || 0,
-          };
-        })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.arrival_time - b.arrival_time)
-        .slice(0, 5);
-
-      return {
-        stop_id: stop.stop_id,
-        stop_name: stop.stop_name,
-        stop_lat: stop.stop_lat,
-        stop_lon: stop.stop_lon,
-        distance: stop.distance,
-        arrivals: arrivals,
-      };
-    });
-
-    return NextResponse.json({ stops: stopsWithArrivals });
+    return NextResponse.json({ stops: nearbyStops });
   } catch (error) {
-    console.error("Nearby stops API error:", error);
+    console.error("Error processing request:", error);
     return NextResponse.json(
-      {
-        error: "Failed to fetch nearby stops",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Failed to fetch nearby stops" },
       { status: 500 }
     );
   }
