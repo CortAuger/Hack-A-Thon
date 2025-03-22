@@ -1,12 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  GoogleMap,
-  LoadScript,
-  Marker,
-  InfoWindow,
-} from "@react-google-maps/api";
+import { GoogleMap, Marker, InfoWindow } from "@react-google-maps/api";
+import type { MarkerProps } from "@react-google-maps/api";
 import {
   Box,
   Typography,
@@ -16,81 +12,225 @@ import {
   ListItemText,
   CircularProgress,
   Alert,
+  Container,
+  Divider,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import GoogleMapsProvider from "@/components/GoogleMapsProvider";
+import DirectionsBusIcon from "@mui/icons-material/DirectionsBus";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+
+interface Arrival {
+  routeId: string;
+  routeName: string;
+  headsign: string;
+  scheduledArrival: string;
+  scheduledDeparture: string;
+  minutesUntilArrival: number;
+  minutesUntilDeparture: number;
+  isRealtime: boolean;
+  delayMinutes: number;
+}
 
 interface Stop {
-  stop_id: string;
-  stop_name: string;
-  stop_lat: number;
-  stop_lon: number;
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
   distance: number;
-  arrivals: {
-    routeId: string;
-    routeName: string;
-    arrivalTime: number;
-    departureTime: number;
-    status: string;
-  }[];
+  arrivals: Arrival[];
 }
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
-  margin: theme.spacing(2),
-  maxHeight: "80vh",
-  overflow: "auto",
+  marginBottom: theme.spacing(2),
+  height: "70vh",
+  overflow: "hidden",
 }));
 
 const mapContainerStyle = {
   width: "100%",
-  height: "70vh",
+  height: "100%",
 };
 
 const defaultCenter = {
-  lat: 43.9441274,
-  lng: -78.8945614,
+  lat: 43.9441313,
+  lng: -78.8945272,
 };
 
+const mapOptions: google.maps.MapOptions = {
+  zoom: 13,
+  zoomControl: true,
+  mapTypeControl: true,
+  streetViewControl: false,
+  fullscreenControl: true,
+};
+
+const StyledInfoWindowContent = styled(Box)(({ theme }) => ({
+  maxHeight: 300,
+  maxWidth: 380,
+  padding: theme.spacing(1.5),
+  "& .stop-name": {
+    fontSize: "1.1rem",
+    fontWeight: 600,
+    color: theme.palette.primary.main,
+    marginBottom: theme.spacing(1),
+  },
+  "& .distance": {
+    display: "inline-block",
+    backgroundColor: theme.palette.grey[100],
+    padding: "4px 8px",
+    borderRadius: 12,
+    fontSize: "0.9rem",
+    color: theme.palette.text.secondary,
+    marginBottom: theme.spacing(1.5),
+  },
+  "& .section-title": {
+    fontSize: "1rem",
+    fontWeight: 500,
+    color: theme.palette.text.primary,
+    marginBottom: theme.spacing(1.5),
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+  },
+  "& .arrival-item": {
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: 8,
+    padding: theme.spacing(1.5),
+    marginBottom: theme.spacing(1),
+    border: `1px solid ${theme.palette.divider}`,
+    "&:last-child": {
+      marginBottom: 0,
+    },
+  },
+  "& .route-info": {
+    fontWeight: 500,
+    color: theme.palette.text.primary,
+    fontSize: "0.95rem",
+    marginBottom: theme.spacing(1),
+  },
+  "& .time-info": {
+    color: theme.palette.text.secondary,
+    fontSize: "0.9rem",
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+  },
+  "& .arrival-time": {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+    backgroundColor: theme.palette.primary.light,
+    color: theme.palette.primary.contrastText,
+    padding: "4px 8px",
+    borderRadius: 12,
+    fontSize: "0.9rem",
+    fontWeight: 500,
+  },
+  "& .minutes-badge": {
+    backgroundColor: theme.palette.success.light,
+    color: theme.palette.success.contrastText,
+    padding: "3px 8px",
+    borderRadius: 12,
+    fontSize: "0.85rem",
+    fontWeight: 500,
+    marginLeft: "auto",
+    "&.realtime": {
+      backgroundColor: theme.palette.primary.main,
+    },
+    "&.delayed": {
+      backgroundColor: theme.palette.error.main,
+    },
+  },
+}));
+
 export default function StopsPage() {
-  const [stops, setStops] = useState<Stop[]>([]);
+  const [userLocation, setUserLocation] =
+    useState<google.maps.LatLngLiteral | null>(null);
+  const [nearbyStops, setNearbyStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
-  const [userLocation, setUserLocation] =
-    useState<google.maps.LatLngLiteral | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [markerIcon, setMarkerIcon] = useState<google.maps.Symbol>();
+  const [userMarkerIcon, setUserMarkerIcon] = useState<google.maps.Symbol>();
+
+  const onMapLoad = () => {
+    setMapLoaded(true);
+    setMarkerIcon({
+      path: "M17 5H3c-1.1 0-2 .9-2 2v9h2c0 1.65 1.34 3 3 3s3-1.35 3-3h5.5c0 1.65 1.34 3 3 3s3-1.35 3-3H23v-3.5L17 5zM3 11V7h13v4H3zm3.5 6c-.83 0-1.5-.67-1.5-1.5S5.67 14 6.5 14s1.5.67 1.5 1.5S7.33 17 6.5 17zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+      fillColor: "#4CAF50",
+      fillOpacity: 1,
+      strokeWeight: 1,
+      strokeColor: "#388E3C",
+      scale: 1.2,
+      anchor: new google.maps.Point(12, 12),
+    });
+
+    setUserMarkerIcon({
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: "#2196F3",
+      fillOpacity: 1,
+      strokeWeight: 2,
+      strokeColor: "#FFFFFF",
+      scale: 8,
+      anchor: new google.maps.Point(0, 0),
+    });
+  };
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-          fetchNearbyStops(position.coords.latitude, position.coords.longitude);
-        },
-        (error) => {
-          setError("Error getting location: " + error.message);
-          setLoading(false);
-        }
-      );
-    } else {
-      setError("Geolocation is not supported by your browser");
-      setLoading(false);
-    }
+    let mounted = true;
+
+    const getUserLocation = () => {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!mounted) return;
+
+            const location = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            setUserLocation(location);
+            fetchNearbyStops(location);
+          },
+          (error) => {
+            if (!mounted) return;
+
+            console.error("Error getting location:", error);
+            setError("Unable to get location information");
+            setLoading(false);
+          }
+        );
+      } else {
+        if (!mounted) return;
+
+        setError("Geolocation is not supported by your browser");
+        setLoading(false);
+      }
+    };
+
+    getUserLocation();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const fetchNearbyStops = async (lat: number, lng: number) => {
+  const fetchNearbyStops = async (location: google.maps.LatLngLiteral) => {
     try {
-      const response = await fetch(`/api/stops/nearby?lat=${lat}&lon=${lng}`);
+      const response = await fetch(
+        `/api/stops/nearby?lat=${location.lat}&lon=${location.lng}`
+      );
       if (!response.ok) {
-        throw new Error("Failed to fetch stops");
+        throw new Error("Failed to fetch nearby stops");
       }
       const data = await response.json();
-      setStops(data.stops);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch stops");
+      setNearbyStops(data.stops);
+    } catch (error) {
+      console.error("Error fetching nearby stops:", error);
+      setError("Unable to fetch nearby bus stops");
     } finally {
       setLoading(false);
     }
@@ -98,123 +238,128 @@ export default function StopsPage() {
 
   if (loading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-      >
-        <CircularProgress />
-      </Box>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="calc(100vh - 64px)"
+        >
+          <CircularProgress />
+        </Box>
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <Box p={3}>
-        <Alert severity="error">{error}</Alert>
-      </Box>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box p={3}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      </Container>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
-        Nearby Bus Stops
+        Find Nearby Bus Stops
       </Typography>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      <Box sx={{ display: "flex", gap: 2 }}>
-        <StyledPaper sx={{ flex: 2 }}>
-          <GoogleMapsProvider>
-            <GoogleMap
-              mapContainerStyle={mapContainerStyle}
-              center={userLocation || defaultCenter}
-              zoom={14}
-              options={{
-                zoomControl: true,
-                streetViewControl: true,
-                mapTypeControl: true,
-                fullscreenControl: true,
-              }}
-            >
-              {userLocation && (
+      <StyledPaper>
+        <GoogleMapsProvider>
+          <GoogleMap
+            mapContainerStyle={mapContainerStyle}
+            center={userLocation || defaultCenter}
+            options={mapOptions}
+            onLoad={onMapLoad}
+          >
+            {userLocation && userMarkerIcon && (
+              <Marker position={userLocation} icon={userMarkerIcon} />
+            )}
+            {markerIcon &&
+              nearbyStops.map((stop) => (
                 <Marker
-                  position={userLocation}
-                  icon={{
-                    url: "/user-location.png",
-                    scaledSize: new google.maps.Size(30, 30),
-                  }}
-                />
-              )}
-
-              {stops.map((stop) => (
-                <Marker
-                  key={stop.stop_id}
-                  position={{ lat: stop.stop_lat, lng: stop.stop_lon }}
+                  key={stop.id}
+                  position={{ lat: stop.latitude, lng: stop.longitude }}
                   onClick={() => setSelectedStop(stop)}
+                  icon={markerIcon}
+                  title={`${stop.name} (${stop.distance.toFixed(2)}km)`}
                 />
               ))}
-
-              {selectedStop && (
-                <InfoWindow
-                  position={{
-                    lat: selectedStop.stop_lat,
-                    lng: selectedStop.stop_lon,
-                  }}
-                  onCloseClick={() => setSelectedStop(null)}
-                >
-                  <div>
-                    <Typography variant="h6">
-                      {selectedStop.stop_name}
-                    </Typography>
-                    <Typography variant="body2">
-                      Stop ID: {selectedStop.stop_id}
-                    </Typography>
-                    <Typography variant="subtitle1" sx={{ mt: 1 }}>
-                      Next Arrivals:
-                    </Typography>
-                    {selectedStop.arrivals.map((arrival, index) => (
-                      <Typography key={index} variant="body2">
-                        {arrival.routeName}:{" "}
-                        {new Date(
-                          arrival.arrivalTime * 1000
-                        ).toLocaleTimeString()}
-                      </Typography>
-                    ))}
-                  </div>
-                </InfoWindow>
-              )}
-            </GoogleMap>
-          </GoogleMapsProvider>
-        </StyledPaper>
-
-        <StyledPaper sx={{ flex: 1 }}>
-          <Typography variant="h6" gutterBottom>
-            Nearby Stops
-          </Typography>
-          <List>
-            {stops.map((stop) => (
-              <ListItem
-                key={stop.stop_id}
-                component="div"
-                onClick={() => setSelectedStop(stop)}
-                sx={{ cursor: "pointer" }}
+            {selectedStop && (
+              <InfoWindow
+                position={{
+                  lat: selectedStop.latitude,
+                  lng: selectedStop.longitude,
+                }}
+                onCloseClick={() => setSelectedStop(null)}
               >
-                <ListItemText
-                  primary={stop.stop_name}
-                  secondary={`${stop.distance.toFixed(2)} km away`}
-                />
-              </ListItem>
-            ))}
-          </List>
-        </StyledPaper>
-      </Box>
-    </Box>
+                <StyledInfoWindowContent>
+                  <Typography className="stop-name">
+                    {selectedStop.name}
+                  </Typography>
+                  <Typography component="span" className="distance">
+                    {selectedStop.distance.toFixed(2)}km away
+                  </Typography>
+                  <Typography className="section-title">
+                    <DirectionsBusIcon sx={{ fontSize: 18 }} />
+                    Upcoming Buses
+                  </Typography>
+                  {selectedStop.arrivals.length > 0 ? (
+                    <Box>
+                      {selectedStop.arrivals.map((arrival, index) => (
+                        <Box
+                          key={`${selectedStop.id}-${arrival.routeId}-${arrival.scheduledArrival}-${index}`}
+                          className="arrival-item"
+                        >
+                          <Typography className="route-info">
+                            Route {arrival.routeName} - {arrival.headsign}
+                          </Typography>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
+                            <Typography className="arrival-time">
+                              <AccessTimeIcon sx={{ fontSize: 16 }} />
+                              {arrival.minutesUntilArrival}m (
+                              {arrival.scheduledArrival})
+                            </Typography>
+                            {arrival.isRealtime && (
+                              <span
+                                className={`minutes-badge ${
+                                  arrival.delayMinutes > 0
+                                    ? "delayed"
+                                    : "realtime"
+                                }`}
+                              >
+                                {arrival.delayMinutes > 0
+                                  ? `${arrival.delayMinutes}m late`
+                                  : "On time"}
+                              </span>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontStyle: "italic" }}
+                    >
+                      No upcoming buses scheduled for this stop
+                    </Typography>
+                  )}
+                </StyledInfoWindowContent>
+              </InfoWindow>
+            )}
+          </GoogleMap>
+        </GoogleMapsProvider>
+      </StyledPaper>
+    </Container>
   );
 }

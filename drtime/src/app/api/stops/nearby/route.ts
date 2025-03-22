@@ -2,34 +2,48 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
-import { transit_realtime } from "gtfs-realtime-bindings";
+import * as GtfsRealtimeBindings from "gtfs-realtime-bindings";
 
 // GTFS API URLs
-const GTFS_STATIC_URL = "https://www.durhamregiontransit.com/gtfs/gtfs.zip";
-const GTFS_REALTIME_URL =
+const GTFS_STATIC_URL =
+  "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
+const GTFS_REALTIME_TRIP_UPDATES_URL =
   "https://drtonline.durhamregiontransit.com/gtfsrealtime/TripUpdates";
+const GTFS_REALTIME_VEHICLE_POSITIONS_URL =
+  "https://drtonline.durhamregiontransit.com/gtfsrealtime/VehiclePositions";
 
-// Cache for GTFS static data
-let staticDataCache: {
-  routes: Map<string, any>;
-  stops: Map<string, any>;
-  stopTimes: Map<string, any[]>;
-} | null = null;
-let lastCacheUpdate = 0;
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-interface Stop {
-  stop_id: string;
-  stop_name: string;
-  stop_lat: number;
-  stop_lon: number;
-  arrivals: Arrival[];
+// Cache for GTFS data
+interface GtfsCache {
+  routes: Array<{
+    route_id: string;
+    route_short_name: string;
+    route_long_name: string;
+  }>;
+  trips: Array<{
+    trip_id: string;
+    route_id: string;
+    trip_headsign: string;
+  }>;
+  stopTimes: Array<{
+    trip_id: string;
+    stop_id: string;
+    arrival_time: string;
+    departure_time: string;
+    stop_sequence: string;
+  }>;
+  stops: Array<{
+    stop_id: string;
+    stop_name: string;
+    stop_lat: string;
+    stop_lon: string;
+  }>;
+  lastUpdated: number;
 }
 
-interface Arrival {
-  route_name: string;
-  arrival_time: number;
-}
+let gtfsCache: GtfsCache | null = null;
+
+// Cache duration - 1 hour for static data
+const CACHE_DURATION = 60 * 60 * 1000;
 
 // Calculate distance between two points using Haversine formula
 function calculateDistance(
@@ -51,114 +65,235 @@ function calculateDistance(
   return R * c;
 }
 
-// Load and cache GTFS static data
-async function loadStaticData() {
-  try {
-    if (staticDataCache && Date.now() - lastCacheUpdate < CACHE_DURATION) {
-      return staticDataCache;
-    }
+// Helper function to convert GTFS time to Date
+function parseGtfsTime(timeStr: string): Date {
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  const now = new Date();
+  const result = new Date(now);
 
-    console.log("Fetching GTFS static data...");
-    const response = await axios.get(GTFS_STATIC_URL, {
-      responseType: "arraybuffer",
-    });
+  // Handle times past midnight (e.g., 25:00:00)
+  const dayOffset = Math.floor(hours / 24);
+  const adjustedHours = hours % 24;
 
-    const zip = new AdmZip(response.data);
-    const routes = new Map();
-    const stops = new Map();
-    const stopTimes = new Map();
+  result.setHours(adjustedHours, minutes, seconds);
+  result.setDate(result.getDate() + dayOffset);
 
-    // Process routes.txt
-    const routesFile = zip.getEntry("routes.txt");
-    if (routesFile) {
-      const routesContent = routesFile.getData().toString("utf-8");
-      const routesRecords = parse(routesContent, {
-        columns: true,
-        skip_empty_lines: true,
-      });
-      routesRecords.forEach((route: any) => {
-        routes.set(route.route_id, route);
-      });
-    }
-
-    // Process stops.txt
-    const stopsFile = zip.getEntry("stops.txt");
-    if (stopsFile) {
-      const stopsContent = stopsFile.getData().toString("utf-8");
-      const stopsRecords = parse(stopsContent, {
-        columns: true,
-        skip_empty_lines: true,
-      });
-      stopsRecords.forEach((stop: any) => {
-        stops.set(stop.stop_id, stop);
-      });
-    }
-
-    // Process stop_times.txt
-    const stopTimesFile = zip.getEntry("stop_times.txt");
-    if (stopTimesFile) {
-      const stopTimesContent = stopTimesFile.getData().toString("utf-8");
-      const stopTimesRecords = parse(stopTimesContent, {
-        columns: true,
-        skip_empty_lines: true,
-      });
-      stopTimesRecords.forEach((stopTime: any) => {
-        if (!stopTimes.has(stopTime.stop_id)) {
-          stopTimes.set(stopTime.stop_id, []);
-        }
-        stopTimes.get(stopTime.stop_id).push(stopTime);
-      });
-    }
-
-    staticDataCache = { routes, stops, stopTimes };
-    lastCacheUpdate = Date.now();
-    console.log("GTFS static data loaded successfully");
-    return staticDataCache;
-  } catch (error) {
-    console.error("Error loading GTFS static data:", error);
-    throw new Error("Failed to load GTFS static data");
-  }
+  return result;
 }
 
-// Get real-time updates
-async function getRealtimeUpdates() {
+// Function to get real-time trip updates
+async function getRealtimeTripUpdates() {
   try {
-    console.log("Fetching GTFS real-time data...");
-    const response = await axios.get(GTFS_REALTIME_URL, {
+    const response = await axios.get(GTFS_REALTIME_TRIP_UPDATES_URL, {
       responseType: "arraybuffer",
+      timeout: 10000,
       headers: {
-        Accept: "application/x-protobuf",
+        Accept: "*/*",
       },
     });
 
     if (!response.data || response.data.length === 0) {
-      console.warn("Empty response from GTFS realtime feed");
-      return { entity: [] };
+      console.log("No real-time updates available");
+      return [];
     }
 
-    const feed = transit_realtime.FeedMessage.decode(response.data);
-    console.log("GTFS real-time data loaded successfully");
-    return feed;
+    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+      new Uint8Array(response.data)
+    );
+    console.log(`Successfully fetched ${feed.entity.length} real-time updates`);
+    return feed.entity;
   } catch (error) {
-    console.error("Error loading GTFS real-time data:", error);
-    if (axios.isAxiosError(error)) {
-      console.error("API Error Details:", {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-      });
-    }
-    // Return empty feed instead of throwing error to allow static data to still work
-    return { entity: [] };
+    console.error("Failed to fetch real-time updates");
+    return [];
   }
 }
 
-// GET handler for nearby stops
+// Helper function to get upcoming arrivals with real-time data
+async function getUpcomingArrivals(
+  stopId: string,
+  gtfsData: GtfsCache
+): Promise<any[]> {
+  const now = new Date();
+  const upcoming: any[] = [];
+
+  try {
+    // Get real-time updates with timeout
+    const realtimeUpdates = await Promise.race([
+      getRealtimeTripUpdates(),
+      new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000)),
+    ]);
+
+    // Get all stop times for this stop
+    const stopTimes = gtfsData.stopTimes.filter((st) => st.stop_id === stopId);
+
+    for (const st of stopTimes) {
+      const trip = gtfsData.trips.find((t) => t.trip_id === st.trip_id);
+      if (!trip) continue;
+
+      const route = gtfsData.routes.find((r) => r.route_id === trip.route_id);
+      if (!route) continue;
+
+      // Check for real-time updates for this trip
+      const realtimeUpdate = realtimeUpdates.find(
+        (entity: any) => entity.tripUpdate?.trip?.tripId === st.trip_id
+      );
+
+      let arrivalTime = parseGtfsTime(st.arrival_time);
+      let departureTime = parseGtfsTime(st.departure_time);
+      let isRealtime = false;
+      let delayMinutes = 0;
+
+      if (realtimeUpdate?.tripUpdate?.stopTimeUpdate) {
+        const stopUpdate = realtimeUpdate.tripUpdate.stopTimeUpdate.find(
+          (update: any) => update.stopId === stopId
+        );
+
+        if (stopUpdate) {
+          if (stopUpdate.arrival?.time) {
+            const timestamp = stopUpdate.arrival.time;
+            const realtimeArrival = new Date(
+              typeof timestamp === "number"
+                ? timestamp * 1000
+                : timestamp.low * 1000
+            );
+            delayMinutes = Math.round(
+              (realtimeArrival.getTime() - arrivalTime.getTime()) / 60000
+            );
+            arrivalTime = realtimeArrival;
+            isRealtime = true;
+          }
+
+          if (stopUpdate.departure?.time) {
+            const timestamp = stopUpdate.departure.time;
+            departureTime = new Date(
+              typeof timestamp === "number"
+                ? timestamp * 1000
+                : timestamp.low * 1000
+            );
+            isRealtime = true;
+          }
+        }
+      }
+
+      // Only include if arrival is in the future (within next 2 hours)
+      if (
+        arrivalTime > now &&
+        arrivalTime.getTime() - now.getTime() <= 7200000
+      ) {
+        upcoming.push({
+          routeId: route.route_id,
+          routeName: route.route_short_name,
+          headsign: trip.trip_headsign,
+          scheduledArrival: arrivalTime.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          }),
+          minutesUntilArrival: Math.round(
+            (arrivalTime.getTime() - now.getTime()) / 60000
+          ),
+          isRealtime: isRealtime,
+          delayMinutes: delayMinutes,
+        });
+      }
+    }
+
+    // Sort by arrival time and limit to next 5 arrivals
+    return upcoming
+      .sort((a, b) => a.minutesUntilArrival - b.minutesUntilArrival)
+      .slice(0, 5);
+  } catch (error) {
+    console.error("Error getting upcoming arrivals:", error);
+    return [];
+  }
+}
+
+async function downloadAndExtractGTFS() {
+  if (gtfsCache && Date.now() - gtfsCache.lastUpdated < CACHE_DURATION) {
+    return gtfsCache;
+  }
+
+  console.log("Downloading GTFS data...");
+  try {
+    const response = await axios.get(GTFS_STATIC_URL, {
+      responseType: "arraybuffer",
+      timeout: 10000,
+      maxContentLength: 50 * 1024 * 1024,
+      headers: {
+        Accept: "*/*",
+        "Accept-Encoding": "gzip, deflate, br",
+      },
+    });
+
+    if (!response.data) {
+      throw new Error("Empty response from GTFS static feed");
+    }
+
+    const zip = new AdmZip(response.data);
+
+    // Read required files
+    const routesEntry = zip.getEntry("routes.txt");
+    const tripsEntry = zip.getEntry("trips.txt");
+    const stopTimesEntry = zip.getEntry("stop_times.txt");
+    const stopsEntry = zip.getEntry("stops.txt");
+
+    if (!routesEntry || !tripsEntry || !stopTimesEntry || !stopsEntry) {
+      throw new Error("Required GTFS files not found in ZIP");
+    }
+
+    // Parse CSV data
+    const routes = parse(routesEntry.getData().toString("utf8"), {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+    const trips = parse(tripsEntry.getData().toString("utf8"), {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+    const stopTimes = parse(stopTimesEntry.getData().toString("utf8"), {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+    const stops = parse(stopsEntry.getData().toString("utf8"), {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+
+    gtfsCache = {
+      routes,
+      trips,
+      stopTimes,
+      stops,
+      lastUpdated: Date.now(),
+    };
+
+    console.log("GTFS data loaded successfully");
+    return gtfsCache;
+  } catch (error) {
+    console.error("Error loading GTFS data:", error);
+    if (axios.isAxiosError(error)) {
+      console.error("Network error details:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: GTFS_STATIC_URL,
+      });
+    }
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to load GTFS data"
+    );
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const lat = parseFloat(searchParams.get("lat") || "0");
-    const lon = parseFloat(searchParams.get("lon") || "0");
+    const lat = searchParams.get("lat");
+    const lon = searchParams.get("lon");
+    const radius = 10;
 
     if (!lat || !lon) {
       return NextResponse.json(
@@ -167,73 +302,45 @@ export async function GET(request: Request) {
       );
     }
 
-    // Load static data and real-time updates
-    const [staticData, realtimeData] = await Promise.all([
-      loadStaticData(),
-      getRealtimeUpdates(),
-    ]);
+    // Get GTFS data
+    const gtfsData = await downloadAndExtractGTFS();
 
-    // Find nearby stops (within 2km)
-    const nearbyStops = Array.from(staticData.stops.values())
-      .map((stop: any) => ({
-        ...stop,
-        stop_lat: parseFloat(stop.stop_lat),
-        stop_lon: parseFloat(stop.stop_lon),
+    // Find nearby stops and get their arrivals
+    const nearbyStopsPromises = gtfsData.stops.map(async (stop: any) => {
+      const upcomingArrivals = await getUpcomingArrivals(
+        stop.stop_id,
+        gtfsData
+      );
+
+      return {
+        id: stop.stop_id,
+        name: stop.stop_name,
+        latitude: parseFloat(stop.stop_lat),
+        longitude: parseFloat(stop.stop_lon),
         distance: calculateDistance(
-          lat,
-          lon,
+          parseFloat(lat),
+          parseFloat(lon),
           parseFloat(stop.stop_lat),
           parseFloat(stop.stop_lon)
         ),
-      }))
-      .filter((stop) => stop.distance <= 2)
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 10);
-
-    // Get arrival information for each stop
-    const stopsWithArrivals = nearbyStops.map((stop) => {
-      const stopTimes = staticData.stopTimes.get(stop.stop_id) || [];
-      const arrivals = stopTimes
-        .map((stopTime: any) => {
-          const route = staticData.routes.get(stopTime.route_id);
-          const tripUpdate = realtimeData.entity.find(
-            (entity) => entity.tripUpdate?.trip?.tripId === stopTime.trip_id
-          );
-
-          if (!route) return null;
-
-          const arrivalTime = tripUpdate
-            ? (tripUpdate.tripUpdate?.stopTimeUpdate?.[0]?.arrival
-                ?.time as number) || parseInt(stopTime.arrival_time)
-            : parseInt(stopTime.arrival_time);
-
-          return {
-            route_name: route.route_long_name,
-            arrival_time: arrivalTime,
-          };
-        })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.arrival_time - b.arrival_time)
-        .slice(0, 5); // Get next 5 arrivals
-
-      return {
-        stop_id: stop.stop_id,
-        stop_name: stop.stop_name,
-        stop_lat: stop.stop_lat,
-        stop_lon: stop.stop_lon,
-        distance: stop.distance,
-        arrivals: arrivals,
+        arrivals: upcomingArrivals,
       };
     });
 
-    return NextResponse.json({ stops: stopsWithArrivals });
+    // Wait for all promises to resolve
+    const allStops = await Promise.all(nearbyStopsPromises);
+
+    // Filter and sort the resolved stops
+    const nearbyStops = allStops
+      .filter((stop) => stop.distance <= radius)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 60);
+
+    return NextResponse.json({ stops: nearbyStops });
   } catch (error) {
-    console.error("Nearby stops API error:", error);
+    console.error("Error processing request:", error);
     return NextResponse.json(
-      {
-        error: "Failed to fetch nearby stops",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Failed to fetch nearby stops" },
       { status: 500 }
     );
   }

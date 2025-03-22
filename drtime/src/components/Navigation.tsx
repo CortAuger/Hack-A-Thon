@@ -19,15 +19,15 @@ import MenuIcon from "@mui/icons-material/Menu";
 import DirectionsBusIcon from "@mui/icons-material/DirectionsBus";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SettingsIcon from "@mui/icons-material/Settings";
-import HomeIcon from "@mui/icons-material/Home";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import Link from "next/link";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import SearchIcon from "@mui/icons-material/Search";
 
 // Navigation menu items configuration
 const pages = [
-  { name: "Live Tracking", path: "/", icon: <DirectionsBusIcon /> },
-  { name: "Routes", path: "/routes", icon: <DirectionsBusIcon /> },
-  { name: "Route List", path: "/routes/list", icon: <DirectionsBusIcon /> },
+  { name: "Search", path: "/search", icon: <SearchIcon /> },
+  { name: "Routes", path: "/routes/list", icon: <DirectionsBusIcon /> },
   { name: "Stops", path: "/stops", icon: <LocationOnIcon /> },
   { name: "Weather", path: "/weather", icon: <WbSunnyIcon /> },
   { name: "Settings", path: "/settings", icon: <SettingsIcon /> },
@@ -61,6 +61,16 @@ export default function Navigation() {
     <AppBar position="static">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
+          {/* <IconButton
+            edge="start"
+            color="inherit"
+            aria-label="back"
+            onClick={() => router.back()}
+            sx={{ mr: 2 }}
+          >
+            <ArrowBackIcon />
+          </IconButton> */}
+
           {/* Logo for desktop view */}
           <DirectionsBusIcon
             sx={{ display: { xs: "none", md: "flex" }, mr: 1 }}
@@ -84,6 +94,7 @@ export default function Navigation() {
           </Typography>
 
           {/* Mobile menu */}
+          {/*
           <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
             <IconButton
               size="large"
@@ -95,7 +106,7 @@ export default function Navigation() {
             >
               <MenuIcon />
             </IconButton>
-            <Menu
+             <Menu
               id="menu-appbar"
               anchorEl={anchorElNav}
               anchorOrigin={{
@@ -124,31 +135,33 @@ export default function Navigation() {
                   <Typography textAlign="center">{page.name}</Typography>
                 </MenuItem>
               ))}
-            </Menu>
-          </Box>
+            </Menu> 
+          </Box> */}
 
           {/* Logo for mobile view */}
-          <DirectionsBusIcon
-            sx={{ display: { xs: "flex", md: "none" }, mr: 1 }}
-          />
-          <Typography
-            variant="h5"
-            noWrap
-            component="a"
-            href="/"
-            sx={{
-              mr: 2,
-              display: { xs: "flex", md: "none" },
-              flexGrow: 1,
-              fontFamily: "monospace",
-              fontWeight: 700,
-              letterSpacing: ".3rem",
-              color: "inherit",
-              textDecoration: "none",
-            }}
-          >
-            DRTIME
-          </Typography>
+          <Box sx={{ 
+            display: { xs: "flex", md: "none" },
+            alignItems: "center",
+            justifyContent: "center",
+            flexGrow: 1
+          }}>
+            <DirectionsBusIcon sx={{ mr: 1 }} />
+            <Typography
+              variant="h5"
+              noWrap
+              component="a"
+              href="/"
+              sx={{
+                fontFamily: "monospace",
+                fontWeight: 700,
+                letterSpacing: ".3rem",
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
+              DRTIME
+            </Typography>
+          </Box>
 
           {/* Desktop menu */}
           <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" } }}>
@@ -159,7 +172,9 @@ export default function Navigation() {
                 sx={{
                   my: 2,
                   color: "white",
-                  display: "block",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
                   mx: 1,
                   backgroundColor:
                     pathname === page.path
@@ -171,38 +186,6 @@ export default function Navigation() {
                 {page.name}
               </Button>
             ))}
-          </Box>
-
-          {/* User menu */}
-          <Box sx={{ flexGrow: 0 }}>
-            <Tooltip title="Open settings">
-              <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-                <Avatar sx={{ bgcolor: "primary.main" }}>DRT</Avatar>
-              </IconButton>
-            </Tooltip>
-            <Menu
-              sx={{ mt: "45px" }}
-              id="menu-appbar"
-              anchorEl={anchorElUser}
-              anchorOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              keepMounted
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              open={Boolean(anchorElUser)}
-              onClose={handleCloseUserMenu}
-            >
-              <MenuItem onClick={handleCloseUserMenu}>
-                <Typography textAlign="center">Profile</Typography>
-              </MenuItem>
-              <MenuItem onClick={handleCloseUserMenu}>
-                <Typography textAlign="center">Logout</Typography>
-              </MenuItem>
-            </Menu>
           </Box>
         </Toolbar>
       </Container>

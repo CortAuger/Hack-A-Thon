@@ -11,8 +11,15 @@ import {
   Paper,
   TextField,
   Button,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from "@mui/material";
 import { useState } from "react";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import TranslateIcon from "@mui/icons-material/Translate";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -38,103 +45,46 @@ export default function SettingsPage() {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Setting
-      </Typography>
-
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Real time update
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Box sx={{ my: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Settings
         </Typography>
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.realTimeUpdates}
-                onChange={handleChange}
-                name="realTimeUpdates"
-              />
-            }
-            label=" Real time update "
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.showBusSpeed}
-                onChange={handleChange}
-                name="showBusSpeed"
-              />
-            }
-            label="Bus Speed"
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.showBusCapacity}
-                onChange={handleChange}
-                name="showBusCapacity"
-              />
-            }
-            label="Crowd"
-          />
-        </FormGroup>
-
-        <Divider sx={{ my: 3 }} />
-
-        <Typography variant="h6" gutterBottom>
-          Setting
+        <Typography variant="subtitle1" color="text.secondary" paragraph>
+          Customize your app preferences
         </Typography>
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.darkMode}
-                onChange={handleChange}
-                name="darkMode"
+        <Paper sx={{ p: 2 }}>
+          <List>
+            <ListItem>
+              <ListItemIcon>
+                <DarkModeIcon />
+              </ListItemIcon>
+              <ListItemText primary="Dark Mode" secondary="Enable dark theme" />
+              <Switch edge="end" />
+            </ListItem>
+            <ListItem>
+              <ListItemIcon>
+                <NotificationsIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Notifications"
+                secondary="Enable push notifications"
               />
-            }
-            label="Dark Mode"
-          />
-        </FormGroup>
-
-        <Divider sx={{ my: 3 }} />
-
-        <Typography variant="h6" gutterBottom>
-          Etc
-        </Typography>
-        <Box sx={{ mb: 2 }}>
-          <TextField
-            select
-            fullWidth
-            label="language"
-            name="language"
-            value={settings.language}
-            onChange={handleChange}
-            SelectProps={{
-              native: true,
-            }}
-          >
-            <option value="en">English</option>
-          </TextField>
-        </Box>
-        <Box sx={{ mb: 2 }}>
-          <TextField
-            fullWidth
-            label="update "
-            name="updateInterval"
-            value={settings.updateInterval}
-            onChange={handleChange}
-            type="number"
-          />
-        </Box>
-
-        <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
-          <Button variant="contained" onClick={handleSave}>
-            Save
-          </Button>
-        </Box>
-      </Paper>
+              <Switch edge="end" />
+            </ListItem>
+            <ListItem>
+              <ListItemIcon>
+                <TranslateIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Language"
+                secondary="Choose your preferred language"
+              />
+              <Switch edge="end" />
+            </ListItem>
+          </List>
+        </Paper>
+      </Box>
     </Container>
   );
 }
