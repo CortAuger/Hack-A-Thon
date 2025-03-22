@@ -25,7 +25,11 @@ interface Arrival {
   routeName: string;
   headsign: string;
   scheduledArrival: string;
+  scheduledDeparture: string;
   minutesUntilArrival: number;
+  minutesUntilDeparture: number;
+  isRealtime: boolean;
+  delayMinutes: number;
 }
 
 interface Stop {
@@ -93,7 +97,7 @@ const StyledInfoWindowContent = styled(Box)(({ theme }) => ({
   "& .arrival-item": {
     backgroundColor: theme.palette.background.paper,
     borderRadius: 8,
-    padding: theme.spacing(1),
+    padding: theme.spacing(1.5),
     marginBottom: theme.spacing(1),
     border: `1px solid ${theme.palette.divider}`,
     "&:last-child": {
@@ -103,23 +107,41 @@ const StyledInfoWindowContent = styled(Box)(({ theme }) => ({
   "& .route-info": {
     fontWeight: 500,
     color: theme.palette.text.primary,
-    fontSize: "0.9rem",
-    marginBottom: 4,
+    fontSize: "0.95rem",
+    marginBottom: theme.spacing(1),
   },
   "& .time-info": {
     color: theme.palette.text.secondary,
-    fontSize: "0.85rem",
+    fontSize: "0.9rem",
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(0.5),
   },
+  "& .arrival-time": {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+    backgroundColor: theme.palette.primary.light,
+    color: theme.palette.primary.contrastText,
+    padding: "4px 8px",
+    borderRadius: 12,
+    fontSize: "0.9rem",
+    fontWeight: 500,
+  },
   "& .minutes-badge": {
     backgroundColor: theme.palette.success.light,
     color: theme.palette.success.contrastText,
-    padding: "2px 6px",
+    padding: "3px 8px",
     borderRadius: 12,
-    fontSize: "0.8rem",
+    fontSize: "0.85rem",
     fontWeight: 500,
+    marginLeft: "auto",
+    "&.realtime": {
+      backgroundColor: theme.palette.primary.main,
+    },
+    "&.delayed": {
+      backgroundColor: theme.palette.error.main,
+    },
   },
 }));
 
@@ -294,13 +316,32 @@ export default function StopsPage() {
                           <Typography className="route-info">
                             Route {arrival.routeName} - {arrival.headsign}
                           </Typography>
-                          <Typography className="time-info">
-                            <AccessTimeIcon sx={{ fontSize: 16 }} />
-                            {arrival.scheduledArrival}
-                            <span className="minutes-badge">
-                              {arrival.minutesUntilArrival}min
-                            </span>
-                          </Typography>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
+                            <Typography className="arrival-time">
+                              <AccessTimeIcon sx={{ fontSize: 16 }} />
+                              {arrival.minutesUntilArrival}m (
+                              {arrival.scheduledArrival})
+                            </Typography>
+                            {arrival.isRealtime && (
+                              <span
+                                className={`minutes-badge ${
+                                  arrival.delayMinutes > 0
+                                    ? "delayed"
+                                    : "realtime"
+                                }`}
+                              >
+                                {arrival.delayMinutes > 0
+                                  ? `${arrival.delayMinutes}m late`
+                                  : "On time"}
+                              </span>
+                            )}
+                          </Box>
                         </Box>
                       ))}
                     </Box>

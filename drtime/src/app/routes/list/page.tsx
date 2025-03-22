@@ -262,7 +262,7 @@ export default function RoutesList() {
                   <List>
                     {routeDetails.stops.map((stop, index) => (
                       <ListItem
-                        key={stop.stop_id}
+                        key={`${stop.stop_id}-${index}`}
                         divider={index < routeDetails.stops.length - 1}
                       >
                         <ListItemText

@@ -19,7 +19,6 @@ import MenuIcon from "@mui/icons-material/Menu";
 import DirectionsBusIcon from "@mui/icons-material/DirectionsBus";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SettingsIcon from "@mui/icons-material/Settings";
-import HomeIcon from "@mui/icons-material/Home";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import Link from "next/link";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -182,38 +181,6 @@ export default function Navigation() {
                 {page.name}
               </Button>
             ))}
-          </Box>
-
-          {/* User menu */}
-          <Box sx={{ flexGrow: 0 }}>
-            <Tooltip title="Open settings">
-              <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-                <Avatar sx={{ bgcolor: "primary.main" }}>DRT</Avatar>
-              </IconButton>
-            </Tooltip>
-            <Menu
-              sx={{ mt: "45px" }}
-              id="menu-appbar"
-              anchorEl={anchorElUser}
-              anchorOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              keepMounted
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              open={Boolean(anchorElUser)}
-              onClose={handleCloseUserMenu}
-            >
-              <MenuItem onClick={handleCloseUserMenu}>
-                <Typography textAlign="center">Profile</Typography>
-              </MenuItem>
-              <MenuItem onClick={handleCloseUserMenu}>
-                <Typography textAlign="center">Logout</Typography>
-              </MenuItem>
-            </Menu>
           </Box>
         </Toolbar>
       </Container>

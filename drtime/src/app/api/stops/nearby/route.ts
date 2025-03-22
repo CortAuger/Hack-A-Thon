@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
+import * as GtfsRealtimeBindings from "gtfs-realtime-bindings";
 
-// GTFS API URL
+// GTFS API URLs
 const GTFS_STATIC_URL =
   "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
+const GTFS_REALTIME_TRIP_UPDATES_URL =
+  "https://drtonline.durhamregiontransit.com/gtfsrealtime/TripUpdates";
+const GTFS_REALTIME_VEHICLE_POSITIONS_URL =
+  "https://drtonline.durhamregiontransit.com/gtfsrealtime/VehiclePositions";
 
 // Cache for GTFS data
 interface GtfsCache {
@@ -37,7 +42,7 @@ interface GtfsCache {
 
 let gtfsCache: GtfsCache | null = null;
 
-// Cache duration - 1 hour
+// Cache duration - 1 hour for static data
 const CACHE_DURATION = 60 * 60 * 1000;
 
 // Calculate distance between two points using Haversine formula
@@ -76,45 +81,131 @@ function parseGtfsTime(timeStr: string): Date {
   return result;
 }
 
-// Helper function to get upcoming arrivals
-function getUpcomingArrivals(stopId: string, gtfsData: GtfsCache): any[] {
+// Function to get real-time trip updates
+async function getRealtimeTripUpdates() {
+  try {
+    const response = await axios.get(GTFS_REALTIME_TRIP_UPDATES_URL, {
+      responseType: "arraybuffer",
+      timeout: 10000,
+      headers: {
+        Accept: "*/*",
+      },
+    });
+
+    if (!response.data || response.data.length === 0) {
+      console.log("No real-time updates available");
+      return [];
+    }
+
+    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+      new Uint8Array(response.data)
+    );
+    console.log(`Successfully fetched ${feed.entity.length} real-time updates`);
+    return feed.entity;
+  } catch (error) {
+    console.error("Failed to fetch real-time updates");
+    return [];
+  }
+}
+
+// Helper function to get upcoming arrivals with real-time data
+async function getUpcomingArrivals(
+  stopId: string,
+  gtfsData: GtfsCache
+): Promise<any[]> {
   const now = new Date();
   const upcoming: any[] = [];
 
-  // Get all stop times for this stop
-  const stopTimes = gtfsData.stopTimes.filter((st) => st.stop_id === stopId);
+  try {
+    // Get real-time updates with timeout
+    const realtimeUpdates = await Promise.race([
+      getRealtimeTripUpdates(),
+      new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000)),
+    ]);
 
-  stopTimes.forEach((st) => {
-    const trip = gtfsData.trips.find((t) => t.trip_id === st.trip_id);
-    if (!trip) return;
+    // Get all stop times for this stop
+    const stopTimes = gtfsData.stopTimes.filter((st) => st.stop_id === stopId);
 
-    const route = gtfsData.routes.find((r) => r.route_id === trip.route_id);
-    if (!route) return;
+    for (const st of stopTimes) {
+      const trip = gtfsData.trips.find((t) => t.trip_id === st.trip_id);
+      if (!trip) continue;
 
-    const arrivalTime = parseGtfsTime(st.arrival_time);
+      const route = gtfsData.routes.find((r) => r.route_id === trip.route_id);
+      if (!route) continue;
 
-    // Only include if arrival is in the future (within next 2 hours)
-    if (arrivalTime > now && arrivalTime.getTime() - now.getTime() <= 7200000) {
-      upcoming.push({
-        routeId: route.route_id,
-        routeName: route.route_short_name,
-        headsign: trip.trip_headsign,
-        scheduledArrival: arrivalTime.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }),
-        minutesUntilArrival: Math.round(
-          (arrivalTime.getTime() - now.getTime()) / 60000
-        ),
-      });
+      // Check for real-time updates for this trip
+      const realtimeUpdate = realtimeUpdates.find(
+        (entity: any) => entity.tripUpdate?.trip?.tripId === st.trip_id
+      );
+
+      let arrivalTime = parseGtfsTime(st.arrival_time);
+      let departureTime = parseGtfsTime(st.departure_time);
+      let isRealtime = false;
+      let delayMinutes = 0;
+
+      if (realtimeUpdate?.tripUpdate?.stopTimeUpdate) {
+        const stopUpdate = realtimeUpdate.tripUpdate.stopTimeUpdate.find(
+          (update: any) => update.stopId === stopId
+        );
+
+        if (stopUpdate) {
+          if (stopUpdate.arrival?.time) {
+            const timestamp = stopUpdate.arrival.time;
+            const realtimeArrival = new Date(
+              typeof timestamp === "number"
+                ? timestamp * 1000
+                : timestamp.low * 1000
+            );
+            delayMinutes = Math.round(
+              (realtimeArrival.getTime() - arrivalTime.getTime()) / 60000
+            );
+            arrivalTime = realtimeArrival;
+            isRealtime = true;
+          }
+
+          if (stopUpdate.departure?.time) {
+            const timestamp = stopUpdate.departure.time;
+            departureTime = new Date(
+              typeof timestamp === "number"
+                ? timestamp * 1000
+                : timestamp.low * 1000
+            );
+            isRealtime = true;
+          }
+        }
+      }
+
+      // Only include if arrival is in the future (within next 2 hours)
+      if (
+        arrivalTime > now &&
+        arrivalTime.getTime() - now.getTime() <= 7200000
+      ) {
+        upcoming.push({
+          routeId: route.route_id,
+          routeName: route.route_short_name,
+          headsign: trip.trip_headsign,
+          scheduledArrival: arrivalTime.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          }),
+          minutesUntilArrival: Math.round(
+            (arrivalTime.getTime() - now.getTime()) / 60000
+          ),
+          isRealtime: isRealtime,
+          delayMinutes: delayMinutes,
+        });
+      }
     }
-  });
 
-  // Sort by arrival time and limit to next 5 arrivals
-  return upcoming
-    .sort((a, b) => a.minutesUntilArrival - b.minutesUntilArrival)
-    .slice(0, 5);
+    // Sort by arrival time and limit to next 5 arrivals
+    return upcoming
+      .sort((a, b) => a.minutesUntilArrival - b.minutesUntilArrival)
+      .slice(0, 5);
+  } catch (error) {
+    console.error("Error getting upcoming arrivals:", error);
+    return [];
+  }
 }
 
 async function downloadAndExtractGTFS() {
@@ -202,7 +293,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const lat = searchParams.get("lat");
     const lon = searchParams.get("lon");
-    const radius = 10; // Changed from 5 to 10km
+    const radius = 10;
 
     if (!lat || !lon) {
       return NextResponse.json(
@@ -214,28 +305,36 @@ export async function GET(request: Request) {
     // Get GTFS data
     const gtfsData = await downloadAndExtractGTFS();
 
-    // Find nearby stops (within 5km instead of 2km)
-    const nearbyStops = gtfsData.stops
-      .map((stop: any) => {
-        const upcomingArrivals = getUpcomingArrivals(stop.stop_id, gtfsData);
+    // Find nearby stops and get their arrivals
+    const nearbyStopsPromises = gtfsData.stops.map(async (stop: any) => {
+      const upcomingArrivals = await getUpcomingArrivals(
+        stop.stop_id,
+        gtfsData
+      );
 
-        return {
-          id: stop.stop_id,
-          name: stop.stop_name,
-          latitude: parseFloat(stop.stop_lat),
-          longitude: parseFloat(stop.stop_lon),
-          distance: calculateDistance(
-            parseFloat(lat),
-            parseFloat(lon),
-            parseFloat(stop.stop_lat),
-            parseFloat(stop.stop_lon)
-          ),
-          arrivals: upcomingArrivals,
-        };
-      })
-      .filter((stop) => stop.distance <= radius) // Increase radius to 10km
+      return {
+        id: stop.stop_id,
+        name: stop.stop_name,
+        latitude: parseFloat(stop.stop_lat),
+        longitude: parseFloat(stop.stop_lon),
+        distance: calculateDistance(
+          parseFloat(lat),
+          parseFloat(lon),
+          parseFloat(stop.stop_lat),
+          parseFloat(stop.stop_lon)
+        ),
+        arrivals: upcomingArrivals,
+      };
+    });
+
+    // Wait for all promises to resolve
+    const allStops = await Promise.all(nearbyStopsPromises);
+
+    // Filter and sort the resolved stops
+    const nearbyStops = allStops
+      .filter((stop) => stop.distance <= radius)
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 60); // Increase number of stops to 60
+      .slice(0, 60);
 
     return NextResponse.json({ stops: nearbyStops });
   } catch (error) {
