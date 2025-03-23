@@ -84,12 +84,16 @@ function parseGtfsTime(timeStr: string): Date {
 // Function to get real-time trip updates
 async function getRealtimeTripUpdates() {
   try {
+    console.log("Attempting to fetch real-time updates...");
     const response = await axios.get(GTFS_REALTIME_TRIP_UPDATES_URL, {
       responseType: "arraybuffer",
-      timeout: 10000,
+      timeout: 30000,
       headers: {
-        Accept: "*/*",
+        Accept: "application/x-protobuf",
+        "User-Agent": "DRTime/1.0",
+        "Cache-Control": "no-cache",
       },
+      validateStatus: (status) => status === 200,
     });
 
     if (!response.data || response.data.length === 0) {
@@ -97,13 +101,52 @@ async function getRealtimeTripUpdates() {
       return [];
     }
 
-    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-      new Uint8Array(response.data)
-    );
-    console.log(`Successfully fetched ${feed.entity.length} real-time updates`);
-    return feed.entity;
+    console.log(`Received ${response.data.length} bytes of real-time data`);
+
+    try {
+      // Convert ArrayBuffer to Uint8Array for protocol buffer decoding
+      const buffer = new Uint8Array(response.data);
+      const feed =
+        GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(buffer);
+
+      if (!feed.entity || feed.entity.length === 0) {
+        console.log("No entities in real-time feed");
+        return [];
+      }
+
+      // Log the first entity for debugging
+      if (feed.entity[0]) {
+        console.log("Sample entity:", {
+          id: feed.entity[0].id,
+          tripUpdate: feed.entity[0].tripUpdate
+            ? {
+                tripId: feed.entity[0].tripUpdate.trip?.tripId,
+                stopTimeUpdate:
+                  feed.entity[0].tripUpdate.stopTimeUpdate?.length,
+              }
+            : null,
+        });
+      }
+
+      console.log(
+        `Successfully decoded ${feed.entity.length} real-time updates`
+      );
+      return feed.entity;
+    } catch (decodeError) {
+      console.error("Error decoding real-time data:", decodeError);
+      return [];
+    }
   } catch (error) {
-    console.error("Failed to fetch real-time updates");
+    if (axios.isAxiosError(error)) {
+      console.error("Failed to fetch real-time updates:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.message,
+        url: GTFS_REALTIME_TRIP_UPDATES_URL,
+      });
+    } else {
+      console.error("Failed to fetch real-time updates:", error);
+    }
     return [];
   }
 }
@@ -117,10 +160,15 @@ async function getUpcomingArrivals(
   const upcoming: any[] = [];
 
   try {
-    // Get real-time updates with timeout
+    // Get real-time updates with timeout and fallback to empty array if it fails
     const realtimeUpdates = await Promise.race([
       getRealtimeTripUpdates(),
-      new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000)),
+      new Promise<any[]>((resolve) =>
+        setTimeout(() => {
+          console.log("Real-time updates timed out, using static schedule");
+          resolve([]);
+        }, 5000)
+      ),
     ]);
 
     // Get all stop times for this stop

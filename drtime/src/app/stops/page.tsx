@@ -271,7 +271,13 @@ export default function StopsPage() {
           <GoogleMap
             mapContainerStyle={mapContainerStyle}
             center={userLocation || defaultCenter}
-            options={mapOptions}
+            zoom={15}
+            options={{
+              zoomControl: true,
+              streetViewControl: false,
+              mapTypeControl: true,
+              fullscreenControl: true,
+            }}
             onLoad={onMapLoad}
           >
             {userLocation && userMarkerIcon && (

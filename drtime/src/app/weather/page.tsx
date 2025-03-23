@@ -29,15 +29,14 @@ import {
 } from "@/services/weatherService";
 
 // Styled components for weather cards
-const WeatherCard = styled(Card)(({ theme }) => ({
+const WeatherCard = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  textAlign: "center",
+  backgroundColor: "#E8F5E9", // Light green background
   height: "100%",
   display: "flex",
   flexDirection: "column",
-  backgroundColor: theme.palette.background.paper,
-  transition: "transform 0.2s",
-  "&:hover": {
-    transform: "translateY(-4px)",
-  },
+  justifyContent: "space-between",
 }));
 
 const WeatherIcon = styled("img")({
@@ -212,16 +211,14 @@ export default function WeatherPage() {
                 <Typography variant="h6">
                   {formatTemp(hour.temp as number)}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {hour.pop > 0 && (
-                    <Box
-                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                    >
-                      <WaterDrop fontSize="small" />
+                {hour.pop > 0 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <WaterDrop fontSize="small" />
+                    <Typography variant="body2" color="text.secondary">
                       {Math.round(hour.pop * 100)}%
-                    </Box>
-                  )}
-                </Typography>
+                    </Typography>
+                  </Box>
+                )}
               </CardContent>
             </WeatherCard>
           </Grid>
