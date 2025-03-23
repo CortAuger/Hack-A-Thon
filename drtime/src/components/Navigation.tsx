@@ -91,10 +91,14 @@ export default function Navigation() {
    * @param path - The target path to navigate to
    */
   const handleNavigation = (path: string) => {
-    if (path === "/search") {
-      // Refresh the page when navigating to search to prevent Google Maps API errors
+    // Pages that use Google Maps API need refresh to prevent loading errors
+    const mapsPages = ["/search", "/stops"];
+
+    if (mapsPages.includes(path)) {
+      // Force page refresh for Google Maps pages
       window.location.href = path;
     } else {
+      // Use regular client-side navigation for other pages
       router.push(path);
     }
     handleCloseNavMenu();

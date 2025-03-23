@@ -5,12 +5,6 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable experimental features
-  experimental: {
-    // Enable server actions for form handling
-    serverActions: true,
-  },
-
   // Configure image domains for next/image
   images: {
     domains: [
