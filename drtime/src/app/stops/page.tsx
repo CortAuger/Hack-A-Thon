@@ -1,3 +1,17 @@
+/**
+ * Stops Page
+ * Displays nearby bus stops on an interactive Google Map.
+ * Shows real-time bus arrival information and allows users to view details
+ * for each stop including scheduled arrivals and real-time updates.
+ *
+ * Features:
+ * - Interactive Google Map with bus stop markers
+ * - Current location detection
+ * - Real-time bus arrival information
+ * - Stop details with arrival times
+ * - Distance calculation from user location
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -20,6 +34,10 @@ import GoogleMapsProvider from "@/components/GoogleMapsProvider";
 import DirectionsBusIcon from "@mui/icons-material/DirectionsBus";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 
+/**
+ * Interface for bus arrival information
+ * Contains details about scheduled and real-time arrivals
+ */
 interface Arrival {
   routeId: string;
   routeName: string;
@@ -32,6 +50,10 @@ interface Arrival {
   delayMinutes: number;
 }
 
+/**
+ * Interface for bus stop information
+ * Contains location and arrival data for each stop
+ */
 interface Stop {
   id: string;
   name: string;
@@ -41,6 +63,10 @@ interface Stop {
   arrivals: Arrival[];
 }
 
+/**
+ * Styled component for the map container
+ * Provides consistent styling for the Google Maps display
+ */
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
   marginBottom: theme.spacing(2),
@@ -48,16 +74,26 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   overflow: "hidden",
 }));
 
+/**
+ * Map container style configuration
+ */
 const mapContainerStyle = {
   width: "100%",
   height: "100%",
 };
 
+/**
+ * Default center coordinates for the map
+ * Centered on Durham Region
+ */
 const defaultCenter = {
   lat: 43.9441313,
   lng: -78.8945272,
 };
 
+/**
+ * Google Maps options configuration
+ */
 const mapOptions: google.maps.MapOptions = {
   zoom: 13,
   zoomControl: true,
@@ -66,6 +102,10 @@ const mapOptions: google.maps.MapOptions = {
   fullscreenControl: true,
 };
 
+/**
+ * Styled component for the info window content
+ * Provides styling for the stop information display
+ */
 const StyledInfoWindowContent = styled(Box)(({ theme }) => ({
   maxHeight: 300,
   maxWidth: 380,
@@ -145,7 +185,12 @@ const StyledInfoWindowContent = styled(Box)(({ theme }) => ({
   },
 }));
 
+/**
+ * StopsPage Component
+ * Main component for displaying nearby bus stops and their information
+ */
 export default function StopsPage() {
+  // State management for map and stop data
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null);
   const [nearbyStops, setNearbyStops] = useState<Stop[]>([]);
@@ -156,6 +201,10 @@ export default function StopsPage() {
   const [markerIcon, setMarkerIcon] = useState<google.maps.Symbol>();
   const [userMarkerIcon, setUserMarkerIcon] = useState<google.maps.Symbol>();
 
+  /**
+   * Handles map load event
+   * Sets up marker icons and initializes map state
+   */
   const onMapLoad = () => {
     setMapLoaded(true);
     setMarkerIcon({
@@ -179,6 +228,10 @@ export default function StopsPage() {
     });
   };
 
+  /**
+   * Fetches user's current location and nearby stops
+   * Handles geolocation errors and updates state accordingly
+   */
   useEffect(() => {
     let mounted = true;
 
@@ -218,6 +271,10 @@ export default function StopsPage() {
     };
   }, []);
 
+  /**
+   * Fetches nearby bus stops from the API
+   * @param location User's current location
+   */
   const fetchNearbyStops = async (location: google.maps.LatLngLiteral) => {
     try {
       const response = await fetch(
@@ -236,6 +293,7 @@ export default function StopsPage() {
     }
   };
 
+  // Loading state display
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -251,6 +309,7 @@ export default function StopsPage() {
     );
   }
 
+  // Error state display
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -271,12 +330,20 @@ export default function StopsPage() {
           <GoogleMap
             mapContainerStyle={mapContainerStyle}
             center={userLocation || defaultCenter}
-            options={mapOptions}
+            zoom={15}
+            options={{
+              zoomControl: true,
+              streetViewControl: false,
+              mapTypeControl: true,
+              fullscreenControl: true,
+            }}
             onLoad={onMapLoad}
           >
+            {/* User Location Marker */}
             {userLocation && userMarkerIcon && (
               <Marker position={userLocation} icon={userMarkerIcon} />
             )}
+            {/* Bus Stop Markers */}
             {markerIcon &&
               nearbyStops.map((stop) => (
                 <Marker
@@ -287,6 +354,7 @@ export default function StopsPage() {
                   title={`${stop.name} (${stop.distance.toFixed(2)}km)`}
                 />
               ))}
+            {/* Stop Information Window */}
             {selectedStop && (
               <InfoWindow
                 position={{

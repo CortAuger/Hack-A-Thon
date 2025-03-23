@@ -1,9 +1,20 @@
+/**
+ * GTFS API Router
+ * This API endpoint handles the processing and serving of GTFS (General Transit Feed Specification) static data.
+ * It downloads and processes the GTFS ZIP file containing transit information for Durham Region.
+ *
+ * Features:
+ * - Downloads GTFS static data from configured URL
+ * - Processes routes.txt and stops.txt files
+ * - Returns structured data about bus routes and stops
+ */
+
 import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
 
-// GTFS data types
+// Data structure for route information from GTFS
 interface Route {
   route_id: string;
   route_name: string;
@@ -12,6 +23,7 @@ interface Route {
   route_text_color: string;
 }
 
+// Data structure for stop information from GTFS
 interface Stop {
   stop_id: string;
   stop_name: string;
@@ -20,7 +32,11 @@ interface Stop {
   wheelchair_boarding: string;
 }
 
-// Process GTFS static data from ZIP file
+/**
+ * Processes the GTFS static data ZIP file
+ * Downloads and extracts route and stop information from the GTFS feed
+ * @returns Object containing arrays of routes and stops
+ */
 async function processGTFSStatic() {
   try {
     const url = process.env.GTFS_STATIC_URL;

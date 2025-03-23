@@ -1,10 +1,22 @@
+/**
+ * Nearby Stops API Router
+ * This API endpoint provides information about nearby bus stops and their upcoming arrivals.
+ * It combines static GTFS data with real-time updates to provide accurate arrival predictions.
+ *
+ * Features:
+ * - Finds stops within specified radius of given coordinates
+ * - Provides real-time arrival updates when available
+ * - Falls back to static schedule when real-time data is unavailable
+ * - Caches GTFS static data to improve performance
+ */
+
 import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
 import { parse } from "csv-parse/sync";
 import * as GtfsRealtimeBindings from "gtfs-realtime-bindings";
 
-// GTFS API URLs
+// GTFS API URLs for Durham Region Transit
 const GTFS_STATIC_URL =
   "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
 const GTFS_REALTIME_TRIP_UPDATES_URL =
@@ -12,7 +24,11 @@ const GTFS_REALTIME_TRIP_UPDATES_URL =
 const GTFS_REALTIME_VEHICLE_POSITIONS_URL =
   "https://drtonline.durhamregiontransit.com/gtfsrealtime/VehiclePositions";
 
-// Cache for GTFS data
+/**
+ * Cache structure for GTFS static data
+ * Stores routes, trips, stop times, and stops information
+ * Data is refreshed every hour to ensure accuracy
+ */
 interface GtfsCache {
   routes: Array<{
     route_id: string;
@@ -40,12 +56,32 @@ interface GtfsCache {
   lastUpdated: number;
 }
 
+/**
+ * Cache and timeout configurations
+ */
+const CACHE_SETTINGS = {
+  STATIC_DURATION: 60 * 60 * 1000, // 1 hour for static GTFS data
+  REALTIME_DURATION: 30 * 1000, // 30 seconds for real-time updates
+  REALTIME_TIMEOUT: 20 * 1000, // 20 seconds timeout for real-time requests
+};
+
+// Static GTFS data cache
 let gtfsCache: GtfsCache | null = null;
 
-// Cache duration - 1 hour for static data
-const CACHE_DURATION = 60 * 60 * 1000;
+// Real-time updates cache
+let realtimeCache = {
+  updates: [],
+  timestamp: 0,
+};
 
-// Calculate distance between two points using Haversine formula
+/**
+ * Calculates the distance between two geographical points using the Haversine formula
+ * @param lat1 Latitude of first point
+ * @param lon1 Longitude of first point
+ * @param lat2 Latitude of second point
+ * @param lon2 Longitude of second point
+ * @returns Distance in kilometers
+ */
 function calculateDistance(
   lat1: number,
   lon1: number,
@@ -65,7 +101,12 @@ function calculateDistance(
   return R * c;
 }
 
-// Helper function to convert GTFS time to Date
+/**
+ * Converts GTFS time format to JavaScript Date object
+ * Handles times past midnight (e.g., 25:00:00) correctly
+ * @param timeStr Time string in GTFS format (HH:MM:SS)
+ * @returns Date object representing the time
+ */
 function parseGtfsTime(timeStr: string): Date {
   const [hours, minutes, seconds] = timeStr.split(":").map(Number);
   const now = new Date();
@@ -81,15 +122,29 @@ function parseGtfsTime(timeStr: string): Date {
   return result;
 }
 
-// Function to get real-time trip updates
+/**
+ * Fetches and processes real-time trip updates from GTFS-realtime feed
+ * Includes error handling and timeout protection
+ * @returns Array of real-time trip update entities
+ */
 async function getRealtimeTripUpdates() {
+  // Return cached data if still valid
+  if (Date.now() - realtimeCache.timestamp < CACHE_SETTINGS.REALTIME_DURATION) {
+    console.log("Using cached real-time updates");
+    return realtimeCache.updates;
+  }
+
   try {
+    console.log("Fetching fresh real-time updates...");
     const response = await axios.get(GTFS_REALTIME_TRIP_UPDATES_URL, {
       responseType: "arraybuffer",
-      timeout: 10000,
+      timeout: CACHE_SETTINGS.REALTIME_TIMEOUT,
       headers: {
-        Accept: "*/*",
+        Accept: "application/x-protobuf",
+        "User-Agent": "DRTime/1.0",
+        "Cache-Control": "no-cache",
       },
+      validateStatus: (status) => status === 200,
     });
 
     if (!response.data || response.data.length === 0) {
@@ -97,18 +152,66 @@ async function getRealtimeTripUpdates() {
       return [];
     }
 
-    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-      new Uint8Array(response.data)
-    );
-    console.log(`Successfully fetched ${feed.entity.length} real-time updates`);
-    return feed.entity;
+    console.log(`Received ${response.data.length} bytes of real-time data`);
+
+    try {
+      // Convert ArrayBuffer to Uint8Array for protocol buffer decoding
+      const buffer = new Uint8Array(response.data);
+      const feed =
+        GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(buffer);
+
+      if (!feed.entity || feed.entity.length === 0) {
+        console.log("No entities in real-time feed");
+        return [];
+      }
+
+      // Log the first entity for debugging
+      if (feed.entity[0]) {
+        console.log("Sample entity:", {
+          id: feed.entity[0].id,
+          tripUpdate: feed.entity[0].tripUpdate
+            ? {
+                tripId: feed.entity[0].tripUpdate.trip?.tripId,
+                stopTimeUpdate:
+                  feed.entity[0].tripUpdate.stopTimeUpdate?.length,
+              }
+            : null,
+        });
+      }
+
+      console.log(
+        `Successfully decoded ${feed.entity.length} real-time updates`
+      );
+      // cache update
+      realtimeCache.updates = feed.entity;
+      realtimeCache.timestamp = Date.now();
+      return feed.entity;
+    } catch (decodeError) {
+      console.error("Error decoding real-time data:", decodeError);
+      return [];
+    }
   } catch (error) {
-    console.error("Failed to fetch real-time updates");
+    if (axios.isAxiosError(error)) {
+      console.error("Failed to fetch real-time updates:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.message,
+        url: GTFS_REALTIME_TRIP_UPDATES_URL,
+      });
+    } else {
+      console.error("Failed to fetch real-time updates:", error);
+    }
     return [];
   }
 }
 
-// Helper function to get upcoming arrivals with real-time data
+/**
+ * Gets upcoming arrivals for a specific stop
+ * Combines static schedule with real-time updates when available
+ * @param stopId The ID of the stop to get arrivals for
+ * @param gtfsData Cached GTFS static data
+ * @returns Array of upcoming arrivals with real-time updates
+ */
 async function getUpcomingArrivals(
   stopId: string,
   gtfsData: GtfsCache
@@ -117,10 +220,17 @@ async function getUpcomingArrivals(
   const upcoming: any[] = [];
 
   try {
-    // Get real-time updates with timeout
+    // Get real-time updates with unified timeout
     const realtimeUpdates = await Promise.race([
       getRealtimeTripUpdates(),
-      new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000)),
+      new Promise<any[]>((resolve) =>
+        setTimeout(() => {
+          console.log(
+            "Real-time updates timed out, falling back to static schedule"
+          );
+          resolve([]);
+        }, CACHE_SETTINGS.REALTIME_TIMEOUT)
+      ),
     ]);
 
     // Get all stop times for this stop
@@ -209,7 +319,10 @@ async function getUpcomingArrivals(
 }
 
 async function downloadAndExtractGTFS() {
-  if (gtfsCache && Date.now() - gtfsCache.lastUpdated < CACHE_DURATION) {
+  if (
+    gtfsCache &&
+    Date.now() - gtfsCache.lastUpdated < CACHE_SETTINGS.STATIC_DURATION
+  ) {
     return gtfsCache;
   }
 
@@ -217,7 +330,7 @@ async function downloadAndExtractGTFS() {
   try {
     const response = await axios.get(GTFS_STATIC_URL, {
       responseType: "arraybuffer",
-      timeout: 10000,
+      timeout: 20000,
       maxContentLength: 50 * 1024 * 1024,
       headers: {
         Accept: "*/*",

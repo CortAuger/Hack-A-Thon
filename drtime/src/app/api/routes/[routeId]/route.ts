@@ -1,3 +1,15 @@
+/**
+ * Route Details API Router
+ * This API endpoint provides detailed information about a specific bus route.
+ * It processes GTFS static data to extract route-specific information including stops and schedules.
+ *
+ * Features:
+ * - Retrieves complete stop sequence for the route
+ * - Provides arrival and departure times for each stop
+ * - Lists all available route directions (headsigns)
+ * - Includes total number of trips for the route
+ */
+
 import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
@@ -6,7 +18,10 @@ import { parse } from "csv-parse/sync";
 const GTFS_STATIC_URL =
   "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
 
-// Interface definitions for GTFS data structures
+/**
+ * Interface for stop information from GTFS data
+ * Contains basic information about a bus stop location
+ */
 interface Stop {
   stop_id: string;
   stop_name: string;
@@ -14,6 +29,10 @@ interface Stop {
   stop_lon: string;
 }
 
+/**
+ * Interface for stop timing information from GTFS data
+ * Contains arrival and departure times for a specific stop in a trip
+ */
 interface StopTime {
   trip_id: string;
   arrival_time: string;
@@ -22,6 +41,10 @@ interface StopTime {
   stop_sequence: number;
 }
 
+/**
+ * Interface for trip information from GTFS data
+ * Contains details about a specific trip on a route
+ */
 interface Trip {
   route_id: string;
   trip_id: string;
@@ -29,6 +52,12 @@ interface Trip {
   direction_id: string;
 }
 
+/**
+ * GET handler for route details
+ * @param request Request object
+ * @param params Contains routeId parameter from the URL
+ * @returns Detailed information about the specified route including stops and directions
+ */
 export async function GET(
   request: Request,
   { params }: { params: { routeId: string } }

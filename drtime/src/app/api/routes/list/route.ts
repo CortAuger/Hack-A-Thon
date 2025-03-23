@@ -1,3 +1,15 @@
+/**
+ * Routes List API Router
+ * This API endpoint provides a comprehensive list of all bus routes in the Durham Region Transit system.
+ * It processes GTFS static data to provide detailed information about each route.
+ *
+ * Features:
+ * - Lists all available bus routes with their details
+ * - Provides route colors for UI display
+ * - Includes trip and stop counts for each route
+ * - Implements caching to improve performance
+ */
+
 import { NextResponse } from "next/server";
 import axios from "axios";
 import AdmZip from "adm-zip";
@@ -6,13 +18,20 @@ import { parse } from "csv-parse/sync";
 const GTFS_STATIC_URL =
   "https://maps.durham.ca/OpenDataGTFS/GTFS_Durham_TXT.zip";
 
-// Cache configuration
+/**
+ * Cache configuration for routes data
+ * Data is cached for 1 hour to reduce load on GTFS server
+ */
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 let routesCache: {
   data: RouteInfo[];
   timestamp: number;
 } | null = null;
 
+/**
+ * Interface defining the structure of route information
+ * Includes basic route details and statistics
+ */
 interface RouteInfo {
   route_id: string;
   route_short_name: string;
@@ -24,6 +43,11 @@ interface RouteInfo {
   stops_count: number;
 }
 
+/**
+ * Fetches and processes route information from GTFS static data
+ * Combines data from routes.txt, trips.txt, and stop_times.txt
+ * @returns Array of processed route information
+ */
 async function fetchAndProcessRoutes() {
   try {
     // Return cached data if available and not expired

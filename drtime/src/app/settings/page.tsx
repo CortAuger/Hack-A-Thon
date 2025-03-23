@@ -1,89 +1,188 @@
+/**
+ * Settings Page
+ * Provides user interface for managing application settings including language preferences
+ * and notification settings. Allows users to customize their experience with the app.
+ *
+ * Features:
+ * - Language selection (English/French)
+ * - Notification preferences
+ * - Settings persistence
+ */
+
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Container,
   Typography,
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Box,
+  Button,
   FormGroup,
   FormControlLabel,
   Switch,
-  Divider,
-  Paper,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
+  Alert,
 } from "@mui/material";
-import { useState } from "react";
-import DarkModeIcon from "@mui/icons-material/DarkMode";
+import { styled } from "@mui/material/styles";
 import NotificationsIcon from "@mui/icons-material/Notifications";
-import TranslateIcon from "@mui/icons-material/Translate";
+import { NotificationService } from "@/services/notificationService";
 
+/**
+ * Styled component for settings sections
+ * Provides consistent styling for settings panels
+ */
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(3),
+  marginTop: theme.spacing(3),
+  backgroundColor: theme.palette.background.paper,
+}));
+
+/**
+ * Available languages for the application
+ * Each language has a code and display name
+ */
+const languages = [
+  { code: "en", name: "English" },
+  { code: "fr", name: "Français" },
+];
+
+/**
+ * SettingsPage Component
+ * Main component for managing application settings
+ */
 export default function SettingsPage() {
-  const [settings, setSettings] = useState({
-    realTimeUpdates: true,
-    showBusSpeed: true,
-    showBusCapacity: false,
-    darkMode: false,
-    language: "ko",
-    updateInterval: "30",
-  });
+  // State management for settings
+  const [language, setLanguage] = useState("en");
+  const [notifications, setNotifications] = useState(false);
+  const [notificationError, setNotificationError] = useState<string | null>(
+    null
+  );
+  const notificationService = NotificationService.getInstance();
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, checked } = event.target;
-    setSettings((prev) => ({
-      ...prev,
-      [name]: event.target.type === "checkbox" ? checked : value,
-    }));
+  /**
+   * Initializes notification settings on component mount
+   */
+  useEffect(() => {
+    setNotifications(notificationService.isEnabled());
+  }, []);
+
+  /**
+   * Handles language selection changes
+   * @param event Select change event
+   */
+  const handleLanguageChange = (event: any) => {
+    setLanguage(event.target.value);
   };
 
+  /**
+   * Handles notification permission changes
+   * Requests browser notification permission if enabled
+   * @param event Switch change event
+   */
+  const handleNotificationsChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const enabled = event.target.checked;
+    setNotifications(enabled);
+
+    if (enabled) {
+      const granted = await notificationService.requestPermission();
+      if (!granted) {
+        setNotificationError(
+          "Please enable notifications in your browser settings"
+        );
+        setNotifications(false);
+        return;
+      }
+    }
+
+    notificationService.setEnabled(enabled);
+    setNotificationError(null);
+  };
+
+  /**
+   * Handles saving all settings
+   * Currently logs settings to console (to be implemented with backend)
+   */
   const handleSave = () => {
-    // TODO: Implement settings save functionality
-    console.log("Saving settings:", settings);
+    console.log("Saving settings:", {
+      language,
+      notifications,
+    });
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ my: 4 }}>
+    <Container maxWidth="md">
+      <Box sx={{ py: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Settings
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary" paragraph>
-          Customize your app preferences
-        </Typography>
-        <Paper sx={{ p: 2 }}>
-          <List>
-            <ListItem>
-              <ListItemIcon>
-                <DarkModeIcon />
-              </ListItemIcon>
-              <ListItemText primary="Dark Mode" secondary="Enable dark theme" />
-              <Switch edge="end" />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <NotificationsIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Notifications"
-                secondary="Enable push notifications"
-              />
-              <Switch edge="end" />
-            </ListItem>
-            <ListItem>
-              <ListItemIcon>
-                <TranslateIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Language"
-                secondary="Choose your preferred language"
-              />
-              <Switch edge="end" />
-            </ListItem>
-          </List>
-        </Paper>
+
+        {/* Language Preferences Section */}
+        <StyledPaper>
+          <Typography variant="h6" gutterBottom>
+            Language Preferences
+          </Typography>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel id="language-select-label">Language</InputLabel>
+            <Select
+              labelId="language-select-label"
+              id="language-select"
+              value={language}
+              label="Language"
+              onChange={handleLanguageChange}
+            >
+              {languages.map((lang) => (
+                <MenuItem key={lang.code} value={lang.code}>
+                  {lang.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </StyledPaper>
+
+        {/* Notification Settings Section */}
+        <StyledPaper>
+          <Typography variant="h6" gutterBottom>
+            Notification Settings
+          </Typography>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={notifications}
+                  onChange={handleNotificationsChange}
+                  color="primary"
+                />
+              }
+              label={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <NotificationsIcon />
+                  <Typography>Enable Notifications</Typography>
+                </Box>
+              }
+            />
+            {notificationError && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                {notificationError}
+              </Alert>
+            )}
+          </FormGroup>
+        </StyledPaper>
+
+        {/* Save Button */}
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleSave}
+          sx={{ mt: 3 }}
+        >
+          Save Changes
+        </Button>
       </Box>
     </Container>
   );
