@@ -86,6 +86,20 @@ export default function Navigation() {
     setAnchorElUser(null);
   };
 
+  /**
+   * Handles navigation and page refresh for specific routes
+   * @param path - The target path to navigate to
+   */
+  const handleNavigation = (path: string) => {
+    if (path === "/search") {
+      // Refresh the page when navigating to search to prevent Google Maps API errors
+      window.location.href = path;
+    } else {
+      router.push(path);
+    }
+    handleCloseNavMenu();
+  };
+
   return (
     <AppBar position="static">
       <Container maxWidth="xl">
@@ -205,7 +219,7 @@ export default function Navigation() {
             {pages.map((page) => (
               <Button
                 key={page.name}
-                onClick={() => router.push(page.path)}
+                onClick={() => handleNavigation(page.path)}
                 sx={{
                   my: 2,
                   color: "white",
