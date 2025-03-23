@@ -31,7 +31,7 @@ DRTime is a modern public transportation tracking application that provides real
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/drtime.git
+git clone https://github.com/CortAuger/Hack-A-Thon.git
 cd drtime
 ```
 
