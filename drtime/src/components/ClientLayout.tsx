@@ -12,25 +12,10 @@
 
 "use client";
 
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import Navigation from "@/components/Navigation";
-
-/**
- * Application theme configuration
- * Defines the color palette and background colors
- */
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: "#4CAF50", // Green primary color
-    },
-    background: {
-      default: "#ffffff", // White background
-      paper: "#E8F5E9", // Light green paper background
-    },
-  },
-});
+import theme from "@/theme"; // Import the global theme
 
 /**
  * ClientLayout Component
