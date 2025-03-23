@@ -1,3 +1,15 @@
+/**
+ * Navigation Component
+ * Provides the main navigation bar for the application.
+ * Implements responsive design with different layouts for mobile and desktop views.
+ *
+ * Features:
+ * - Responsive navigation menu
+ * - Route-based active state
+ * - Icon-based navigation items
+ * - Mobile-friendly design
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -24,7 +36,10 @@ import Link from "next/link";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
 
-// Navigation menu items configuration
+/**
+ * Navigation menu configuration
+ * Defines the available pages and their properties
+ */
 const pages = [
   { name: "Search", path: "/search", icon: <SearchIcon /> },
   { name: "Routes", path: "/routes/list", icon: <DirectionsBusIcon /> },
@@ -33,26 +48,40 @@ const pages = [
   { name: "Settings", path: "/settings", icon: <SettingsIcon /> },
 ];
 
-// Navigation component provides the main navigation bar
-// This is a client component that handles navigation and responsive menu
+/**
+ * Navigation Component
+ * Main navigation bar that provides access to different sections of the application
+ */
 export default function Navigation() {
   const router = useRouter();
   const pathname = usePathname();
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
-  // Handle navigation menu open/close
+  /**
+   * Handles opening the navigation menu on mobile devices
+   */
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
   };
+
+  /**
+   * Handles opening the user menu (currently unused)
+   */
   const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElUser(event.currentTarget);
   };
 
+  /**
+   * Handles closing the navigation menu
+   */
   const handleCloseNavMenu = () => {
     setAnchorElNav(null);
   };
 
+  /**
+   * Handles closing the user menu
+   */
   const handleCloseUserMenu = () => {
     setAnchorElUser(null);
   };
@@ -139,12 +168,14 @@ export default function Navigation() {
           </Box> */}
 
           {/* Logo for mobile view */}
-          <Box sx={{ 
-            display: { xs: "flex", md: "none" },
-            alignItems: "center",
-            justifyContent: "center",
-            flexGrow: 1
-          }}>
+          <Box
+            sx={{
+              display: { xs: "flex", md: "none" },
+              alignItems: "center",
+              justifyContent: "center",
+              flexGrow: 1,
+            }}
+          >
             <DirectionsBusIcon sx={{ mr: 1 }} />
             <Typography
               variant="h5"
@@ -163,8 +194,14 @@ export default function Navigation() {
             </Typography>
           </Box>
 
-          {/* Desktop menu */}
-          <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" } }}>
+          {/* Desktop navigation menu */}
+          <Box
+            sx={{
+              flexGrow: 1,
+              display: { xs: "none", md: "flex" },
+              justifyContent: "center", // Center the navigation items
+            }}
+          >
             {pages.map((page) => (
               <Button
                 key={page.name}

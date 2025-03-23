@@ -1,11 +1,29 @@
+/**
+ * Weather Service
+ * Provides weather data and forecasts using the OpenWeatherMap API.
+ * Includes current conditions, forecasts, and air quality information.
+ *
+ * Features:
+ * - Current weather conditions
+ * - Hourly and daily forecasts
+ * - Air quality data
+ * - UV index recommendations
+ * - Location-based weather information
+ */
+
 import axios from "axios";
 
+// API configuration
 const API_KEY =
   process.env.NEXT_PUBLIC_OPENWEATHERMAP_API_KEY || "fallback_key";
 const API_URL =
   process.env.NEXT_PUBLIC_OPENWEATHERMAP_API_URL ||
   "https://api.openweathermap.org/data/2.5";
 
+/**
+ * Weather forecast data interface
+ * Contains temperature, conditions, and other meteorological data
+ */
 export interface WeatherForecast {
   dt: number;
   temp:
@@ -29,6 +47,10 @@ export interface WeatherForecast {
   uvi: number; // UV Index
 }
 
+/**
+ * Air quality data interface
+ * Contains air quality index and pollutant measurements
+ */
 export interface AirQuality {
   aqi: number;
   components: {
@@ -40,6 +62,10 @@ export interface AirQuality {
   };
 }
 
+/**
+ * Complete weather response interface
+ * Combines current conditions, forecasts, and air quality
+ */
 export interface WeatherResponse {
   current: {
     temp: number;
@@ -58,6 +84,11 @@ export interface WeatherResponse {
   location_name?: string;
 }
 
+/**
+ * Gets UV index risk level and protection recommendations
+ * @param uvi UV index value
+ * @returns Object containing risk level and safety recommendations
+ */
 export const getUVIndexRecommendation = (
   uvi: number
 ): { risk: string; recommendation: string } => {
@@ -93,6 +124,11 @@ export const getUVIndexRecommendation = (
   }
 };
 
+/**
+ * Gets air quality description based on AQI value
+ * @param aqi Air Quality Index value
+ * @returns Object containing air quality level and description
+ */
 export const getAQIDescription = (
   aqi: number
 ): { level: string; description: string } => {
@@ -122,6 +158,12 @@ export const getAQIDescription = (
   }
 };
 
+/**
+ * Fetches comprehensive weather data for a location
+ * @param lat Latitude coordinate
+ * @param lon Longitude coordinate
+ * @returns Promise resolving to complete weather data
+ */
 export const fetchWeatherData = async (
   lat: number,
   lon: number
@@ -192,7 +234,11 @@ export const fetchWeatherData = async (
   }
 };
 
-// Process 3-hour interval forecast data into daily groups
+/**
+ * Processes 3-hour interval forecast data into daily groups
+ * @param forecastList Raw forecast data from API
+ * @returns Array of daily weather forecasts
+ */
 function processDailyForecast(forecastList: any[]): WeatherForecast[] {
   const dailyMap = new Map();
 
@@ -235,7 +281,11 @@ function processDailyForecast(forecastList: any[]): WeatherForecast[] {
   return Array.from(dailyMap.values());
 }
 
-// Process hourly forecast data
+/**
+ * Processes hourly forecast data for the next 24 hours
+ * @param forecastList Raw forecast data from API
+ * @returns Array of hourly weather forecasts
+ */
 function processHourlyForecast(forecastList: any[]): WeatherForecast[] {
   return forecastList.slice(0, 8).map((item) => ({
     dt: item.dt,

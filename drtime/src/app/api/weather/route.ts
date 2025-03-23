@@ -1,3 +1,14 @@
+/**
+ * Weather API Router
+ * This API endpoint provides weather information for a given location using OpenWeatherMap API.
+ * It serves as a proxy to avoid exposing API keys on the client side.
+ *
+ * Features:
+ * - Fetches current weather data for specified coordinates
+ * - Provides temperature, feels like, humidity, and other weather metrics
+ * - Defaults to Durham Region coordinates if none provided
+ */
+
 import { NextResponse } from "next/server";
 import axios from "axios";
 
@@ -10,6 +21,12 @@ interface WeatherData {
   windSpeed: number;
 }
 
+/**
+ * Fetches weather data from OpenWeatherMap API
+ * @param lat Latitude of the location
+ * @param lon Longitude of the location
+ * @returns Processed weather data including temperature, humidity, and description
+ */
 async function getWeatherData(lat: number, lon: number): Promise<WeatherData> {
   const apiKey = process.env.OPENWEATHERMAP_API_KEY;
   if (!apiKey) {

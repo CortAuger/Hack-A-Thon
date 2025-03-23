@@ -1,3 +1,16 @@
+/**
+ * Search Page
+ * This page provides a transit route search interface using Google Maps.
+ * Users can search for bus routes between two locations with current location support.
+ *
+ * Features:
+ * - Current location detection
+ * - Address autocomplete
+ * - Interactive map display
+ * - Transit directions with multiple options
+ * - Real-time route updates
+ */
+
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -26,6 +39,10 @@ import {
   getPlaceSuggestions,
 } from "@/services/googleMapsService";
 
+/**
+ * Styled component for the map container
+ * Provides consistent styling for the Google Maps embed
+ */
 const MapContainer = styled(Box)({
   position: "relative",
   borderRadius: "8px",
@@ -34,6 +51,10 @@ const MapContainer = styled(Box)({
   border: "1px solid rgba(0, 0, 0, 0.12)",
 });
 
+/**
+ * Styled component for the search container
+ * Provides a semi-transparent background for search controls
+ */
 const SearchContainer = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   marginBottom: theme.spacing(3),
@@ -41,6 +62,10 @@ const SearchContainer = styled(Paper)(({ theme }) => ({
   backgroundColor: "rgba(255, 255, 255, 0.9)",
 }));
 
+/**
+ * Styled component for the autocomplete inputs
+ * Ensures consistent styling with the Material-UI theme
+ */
 const StyledAutocomplete = styled(Autocomplete)(({ theme }) => ({
   "& .MuiOutlinedInput-root": {
     backgroundColor: theme.palette.background.paper,
@@ -50,6 +75,9 @@ const StyledAutocomplete = styled(Autocomplete)(({ theme }) => ({
   },
 }));
 
+/**
+ * Interface for place suggestions from Google Places API
+ */
 interface PlaceSuggestion {
   description: string;
   place_id: string;
@@ -57,7 +85,12 @@ interface PlaceSuggestion {
 
 const libraries = ["places"];
 
+/**
+ * SearchPage Component
+ * Main component for the transit route search functionality
+ */
 export default function SearchPage() {
+  // State management for search inputs and results
   const [origin, setOrigin] = useState<string>("");
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>(
     []
@@ -74,6 +107,9 @@ export default function SearchPage() {
   const [isUsingCurrentLocation, setIsUsingCurrentLocation] = useState(true);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
 
+  /**
+   * Checks if Google Maps API is loaded and gets current location
+   */
   useEffect(() => {
     const checkGoogleMapsLoaded = () => {
       if (window.google && window.google.maps) {
@@ -86,6 +122,9 @@ export default function SearchPage() {
     checkGoogleMapsLoaded();
   }, []);
 
+  /**
+   * Gets user's current location and updates origin field
+   */
   const handleGetCurrentLocation = async () => {
     if (!isGoogleMapsLoaded) return;
 
@@ -110,6 +149,10 @@ export default function SearchPage() {
     }
   };
 
+  /**
+   * Handles input changes in the origin field
+   * Fetches place suggestions for autocomplete
+   */
   const handleOriginInput = async (input: string) => {
     setIsUsingCurrentLocation(false);
     if (input.length > 2) {
@@ -124,6 +167,10 @@ export default function SearchPage() {
     }
   };
 
+  /**
+   * Handles input changes in the destination field
+   * Fetches place suggestions for autocomplete
+   */
   const handleDestinationInput = async (input: string) => {
     if (input.length > 2) {
       try {
@@ -137,6 +184,10 @@ export default function SearchPage() {
     }
   };
 
+  /**
+   * Handles the search action
+   * Generates Google Maps embed URL with transit directions
+   */
   const handleSearch = useCallback(() => {
     if (!origin || !destination) return;
     setLoading(true);

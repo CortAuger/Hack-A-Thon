@@ -1,3 +1,14 @@
+/**
+ * Settings Page
+ * Provides user interface for managing application settings including language preferences
+ * and notification settings. Allows users to customize their experience with the app.
+ *
+ * Features:
+ * - Language selection (English/French)
+ * - Notification preferences
+ * - Settings persistence
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,18 +31,31 @@ import { styled } from "@mui/material/styles";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import { NotificationService } from "@/services/notificationService";
 
+/**
+ * Styled component for settings sections
+ * Provides consistent styling for settings panels
+ */
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   marginTop: theme.spacing(3),
   backgroundColor: theme.palette.background.paper,
 }));
 
+/**
+ * Available languages for the application
+ * Each language has a code and display name
+ */
 const languages = [
   { code: "en", name: "English" },
   { code: "fr", name: "Français" },
 ];
 
+/**
+ * SettingsPage Component
+ * Main component for managing application settings
+ */
 export default function SettingsPage() {
+  // State management for settings
   const [language, setLanguage] = useState("en");
   const [notifications, setNotifications] = useState(false);
   const [notificationError, setNotificationError] = useState<string | null>(
@@ -39,14 +63,26 @@ export default function SettingsPage() {
   );
   const notificationService = NotificationService.getInstance();
 
+  /**
+   * Initializes notification settings on component mount
+   */
   useEffect(() => {
     setNotifications(notificationService.isEnabled());
   }, []);
 
+  /**
+   * Handles language selection changes
+   * @param event Select change event
+   */
   const handleLanguageChange = (event: any) => {
     setLanguage(event.target.value);
   };
 
+  /**
+   * Handles notification permission changes
+   * Requests browser notification permission if enabled
+   * @param event Switch change event
+   */
   const handleNotificationsChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -68,6 +104,10 @@ export default function SettingsPage() {
     setNotificationError(null);
   };
 
+  /**
+   * Handles saving all settings
+   * Currently logs settings to console (to be implemented with backend)
+   */
   const handleSave = () => {
     console.log("Saving settings:", {
       language,
@@ -82,6 +122,7 @@ export default function SettingsPage() {
           Settings
         </Typography>
 
+        {/* Language Preferences Section */}
         <StyledPaper>
           <Typography variant="h6" gutterBottom>
             Language Preferences
@@ -104,6 +145,7 @@ export default function SettingsPage() {
           </FormControl>
         </StyledPaper>
 
+        {/* Notification Settings Section */}
         <StyledPaper>
           <Typography variant="h6" gutterBottom>
             Notification Settings
@@ -132,6 +174,7 @@ export default function SettingsPage() {
           </FormGroup>
         </StyledPaper>
 
+        {/* Save Button */}
         <Button
           variant="contained"
           color="primary"

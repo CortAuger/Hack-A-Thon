@@ -1,3 +1,15 @@
+/**
+ * Bus Routes List Page
+ * This page displays a comprehensive list of all bus routes and their details.
+ * Users can search for routes and view detailed information about each route.
+ *
+ * Features:
+ * - Searchable list of all bus routes
+ * - Detailed view of selected route information
+ * - Real-time route filtering
+ * - Stop sequence and schedule display
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -23,6 +35,10 @@ import { styled } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
+/**
+ * Interface for basic route information
+ * Contains route identifiers and statistics
+ */
 interface Route {
   route_id: string;
   route_short_name: string;
@@ -34,6 +50,10 @@ interface Route {
   stops_count: number;
 }
 
+/**
+ * Interface for stop information
+ * Contains stop location and timing details
+ */
 interface Stop {
   stop_id: string;
   stop_name: string;
@@ -43,6 +63,10 @@ interface Stop {
   departure_time: string;
 }
 
+/**
+ * Interface for detailed route information
+ * Includes directions and stop sequence
+ */
 interface RouteDetails {
   route_id: string;
   directions: string[];
@@ -50,6 +74,10 @@ interface RouteDetails {
   total_trips: number;
 }
 
+/**
+ * Styled component for the main content container
+ * Provides scrollable container with maximum height
+ */
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
   margin: theme.spacing(2),
@@ -57,7 +85,13 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   overflow: "auto",
 }));
 
+/**
+ * RoutesList Component
+ * Main component for displaying and managing bus routes
+ * Handles route fetching, searching, and detail display
+ */
 export default function RoutesList() {
+  // State management for routes and UI
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +100,10 @@ export default function RoutesList() {
   const [routeDetails, setRouteDetails] = useState<RouteDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
+  /**
+   * Fetches the list of all routes on component mount
+   * Handles loading states and error cases
+   */
   useEffect(() => {
     const fetchRoutes = async () => {
       try {
@@ -88,6 +126,10 @@ export default function RoutesList() {
     fetchRoutes();
   }, []);
 
+  /**
+   * Fetches detailed information for a specific route
+   * @param routeId The ID of the route to fetch details for
+   */
   const fetchRouteDetails = async (routeId: string) => {
     try {
       setLoadingDetails(true);
@@ -107,11 +149,16 @@ export default function RoutesList() {
     }
   };
 
+  /**
+   * Handles route selection and fetches its details
+   * @param route The selected route object
+   */
   const handleRouteSelect = (route: Route) => {
     setSelectedRoute(route);
     fetchRouteDetails(route.route_id);
   };
 
+  // Filter routes based on search term
   const filteredRoutes =
     routes?.filter(
       (route) =>
@@ -121,6 +168,7 @@ export default function RoutesList() {
         route.route_long_name.toLowerCase().includes(searchTerm.toLowerCase())
     ) ?? [];
 
+  // Loading state display
   if (loading) {
     return (
       <Box
@@ -134,6 +182,7 @@ export default function RoutesList() {
     );
   }
 
+  // Error state display
   if (error) {
     return (
       <Alert severity="error" sx={{ mt: 2 }}>
@@ -145,10 +194,12 @@ export default function RoutesList() {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ my: 4 }}>
+        {/* Page Title */}
         <Typography variant="h4" component="h1" gutterBottom>
           Bus Routes
         </Typography>
 
+        {/* Search Input */}
         <TextField
           fullWidth
           variant="outlined"
@@ -165,18 +216,24 @@ export default function RoutesList() {
           }}
         />
 
-        <Box sx={{ 
-          display: "flex", 
-          gap: 2,
-          flexDirection: { xs: 'column', md: 'row' }
-        }}>
-          <StyledPaper sx={{ 
-            flex: { xs: '1 1 auto', md: 1 },
-            maxHeight: { 
-              xs: 'calc(40vh - 100px)', 
-              md: 'calc(100vh - 200px)' 
-            }
-          }}>
+        {/* Main Content Layout */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            flexDirection: { xs: "column", md: "row" },
+          }}
+        >
+          {/* Routes List Panel */}
+          <StyledPaper
+            sx={{
+              flex: { xs: "1 1 auto", md: 1 },
+              maxHeight: {
+                xs: "calc(40vh - 100px)",
+                md: "calc(100vh - 200px)",
+              },
+            }}
+          >
             <List>
               {filteredRoutes.length === 0 ? (
                 <Typography>No results found</Typography>
@@ -196,6 +253,7 @@ export default function RoutesList() {
                               gap: 1,
                             }}
                           >
+                            {/* Route Number Badge */}
                             <Box
                               sx={{
                                 bgcolor: `#${route.route_color || "000000"}`,
@@ -221,14 +279,18 @@ export default function RoutesList() {
             </List>
           </StyledPaper>
 
+          {/* Route Details Panel */}
           {selectedRoute && (
-            <StyledPaper sx={{ 
-              flex: { xs: '1 1 auto', md: 1 },
-              maxHeight: { 
-                xs: 'calc(60vh - 100px)', 
-                md: 'calc(100vh - 200px)' 
-              }
-            }}>
+            <StyledPaper
+              sx={{
+                flex: { xs: "1 1 auto", md: 1 },
+                maxHeight: {
+                  xs: "calc(60vh - 100px)",
+                  md: "calc(100vh - 200px)",
+                },
+              }}
+            >
+              {/* Basic Route Information */}
               <Typography variant="h6" gutterBottom>
                 Route Details
               </Typography>
@@ -257,12 +319,14 @@ export default function RoutesList() {
                 Total Trips: {selectedRoute.trips_count}
               </Typography>
 
+              {/* Loading State for Route Details */}
               {loadingDetails ? (
                 <Box display="flex" justifyContent="center" my={2}>
                   <CircularProgress size={24} />
                 </Box>
               ) : routeDetails ? (
                 <>
+                  {/* Route Directions */}
                   <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                     Route Directions
                   </Typography>
@@ -272,6 +336,7 @@ export default function RoutesList() {
                     </Typography>
                   ))}
 
+                  {/* Stop Sequence */}
                   <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                     Stop Sequence
                   </Typography>

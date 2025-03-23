@@ -1,4 +1,20 @@
-// Get current location
+/**
+ * Google Maps Service
+ * Provides utility functions for Google Maps integration.
+ * Handles location-based features and place suggestions.
+ *
+ * Features:
+ * - Current location detection
+ * - Place autocomplete suggestions
+ * - Location search functionality
+ * - Canadian region restrictions
+ */
+
+/**
+ * Gets the user's current location using the browser's geolocation API
+ * @returns Promise resolving to latitude and longitude coordinates
+ * @throws Error if geolocation is not supported or permission is denied
+ */
 export async function getCurrentLocation(): Promise<{
   lat: number;
   lng: number;
@@ -23,7 +39,12 @@ export async function getCurrentLocation(): Promise<{
   });
 }
 
-// Get place suggestions for autocomplete
+/**
+ * Gets place suggestions for the autocomplete feature
+ * @param input Search text input from the user
+ * @returns Array of place suggestions with descriptions and place IDs
+ * @throws Error if Google Maps API is not loaded or fails
+ */
 export async function getPlaceSuggestions(input: string) {
   if (!input || !window.google) return [];
 
@@ -31,9 +52,9 @@ export async function getPlaceSuggestions(input: string) {
     const service = new google.maps.places.AutocompleteService();
     const response = await service.getPlacePredictions({
       input,
-      componentRestrictions: { country: "ca" },
-      types: ["geocode", "establishment"],
-      region: "ca",
+      componentRestrictions: { country: "ca" }, // Restrict to Canadian locations
+      types: ["geocode", "establishment"], // Include addresses and points of interest
+      region: "ca", // Set region bias to Canada
     });
 
     return response.predictions.map((prediction) => ({
