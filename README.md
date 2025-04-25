@@ -84,8 +84,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Durham Region Transit for inspiration
 - Material-UI team for the amazing component library
 - All contributors who helped make this project possible
-
-## Contact
-
-Your Name - [@yourtwitter](https://twitter.com/yourtwitter)
-Project Link: [https://github.com/yourusername/drtime](https://github.com/yourusername/drtime) 
